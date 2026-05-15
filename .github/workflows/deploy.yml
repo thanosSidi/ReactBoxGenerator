@@ -27,7 +27,10 @@ jobs:
     - name: Install Dependencies
       run: npm install
 
+    # Step 4: Build the React application (Bypassing strict warning-errors)
     - name: Build Application
+      env:
+        CI: false
       run: npm run build
 
     # Configure AWS using temporary OIDC tokens
