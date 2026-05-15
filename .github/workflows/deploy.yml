@@ -23,8 +23,9 @@ jobs:
         node-version: 20
         cache: 'npm'
 
+    # Step 3: Install dependencies using standard install instead of strict ci
     - name: Install Dependencies
-      run: npm ci
+      run: npm install
 
     - name: Build Application
       run: npm run build
