@@ -1,39 +1,68 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { CameraControls } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import * as THREE from 'three';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-function STLViewer({ url }) {
+function STLViewer({ url, controlsRef }) {
   const [geometry, setGeometry] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (url) {
-      setLoading(true);
       const loader = new STLLoader();
       loader.load(
         url,
         (geom) => {
+          // 1. Strip flat data
+          geom.deleteAttribute('normal'); 
+          
+          // 2. FIXED: Use the direct imported module variable instead of THREE.*
+          geom = BufferGeometryUtils.mergeVertices(geom); 
+          
+          // 3. Compute clean vector slopes
+          geom.computeVertexNormals(); 
+          
           setGeometry(geom);
-          setLoading(false);
         },
         (progress) => {
           console.log((progress.loaded / progress.total * 100) + '% loaded');
         },
         (error) => {
           console.error('An error happened', error);
-          setLoading(false);
         }
       );
     }
   }, [url]);
 
+  useEffect(() => {
+    if (geometry && controlsRef.current) {
+      geometry.computeBoundingBox();
+      const box = geometry.boundingBox;
+      controlsRef.current.fitToBox(box, true);
+      controlsRef.current.rotatePolarTo(1.1, false); // Dynamic isometric angle to capture sloped facets
+    }
+  }, [geometry, controlsRef]);
+
   if (!geometry) return null;
 
   return (
-    <mesh geometry={geometry}>
-      <meshStandardMaterial color="orange" />
+    <mesh geometry={geometry} castShadow receiveShadow>
+      <meshPhysicalMaterial 
+        color="#dd7616" 
+        roughness={0.4}
+        metalness={0.0}
+        flatShading={false}
+        
+        // 1. CLEARCOAT (Simulates a smooth outer lacquer/finish layer over the plastic)
+        clearcoat={0.3}             // Subtle glossy reflection layer on top
+        clearcoatRoughness={0.2}    // Keeps the top gloss layer relatively sharp
+        
+        // 2. SHEEN (Mimics micro-fibers/fuzz or the soft look of matte plastic edges)
+        sheen={1.0}                 // Intensity of the edge glow
+        sheenRoughness={0.5}        // Softness of the edge highlights
+        sheenColor="#ff9d42"        // A slightly lighter tint of your base orange for realistic highlights
+      />
     </mesh>
   );
 }
@@ -41,29 +70,239 @@ function STLViewer({ url }) {
 function App() {
   const [stlUrl, setStlUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const controlsRef = useRef();
+  const [formData, setFormData] = useState({
+    total_width_mm: 80,
+    total_length_mm: 80,
+    cell_w: 40,
+    cell_l: 40,
+    printer_w: 250,
+    printer_l: 250,
+    base_height: 3.5,
+    tile_gap_mm: 20,
+    cut_corner_radius: 3.0
+  });
 
-  const fetchSTL = async () => {
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: parseFloat(value) || 0 });
+  };
+
+  const generateSTL = async () => {
     setLoading(true);
-    // Placeholder: replace with actual FastAPI endpoint
-    // For example, if the backend generates and returns a download URL
-    // Assume the endpoint is http://localhost:8000/download/some-request-id
-    // But since we don't have the request_id, perhaps the user needs to provide it.
-
-    // For now, use a placeholder STL URL
-    setStlUrl('https://example.com/model.stl'); // Replace with actual URL
+    try {
+      const response = await fetch('http://16.16.53.53/generate-baseplate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const downloadUrl = `http://16.16.53.53/download/${data.request_id}`;
+        setStlUrl(downloadUrl);
+      } else {
+        alert('Error generating STL: ' + data.detail);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Failed to generate STL');
+    }
     setLoading(false);
   };
 
+  const styles = {
+    container: {
+      display: 'flex',
+      height: '100vh',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      backgroundColor: '#f8fafc',
+      color: '#1e293b',
+    },
+    sidebar: {
+      width: '420px',
+      padding: '32px',
+      overflowY: 'auto',
+      backgroundColor: '#ffffff',
+      borderRight: '1px solid #e2e8f0',
+      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    title: {
+      fontSize: '24px',
+      fontWeight: 700,
+      margin: '0 0 8px 0',
+      color: '#1e3a8a',
+      letterSpacing: '-0.5px',
+    },
+    subtitle: {
+      fontSize: '14px',
+      color: '#64748b',
+      margin: '0 0 24px 0',
+    },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '16px 12px',
+    },
+    formField: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+    },
+    fullWidthField: {
+      gridColumn: 'span 2',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+    },
+    label: {
+      fontSize: '13px',
+      fontWeight: 500,
+      color: '#475569',
+    },
+    input: {
+      padding: '10px 14px',
+      borderRadius: '8px',
+      border: '1px solid #cbd5e1',
+      fontSize: '14px',
+      outline: 'none',
+      transition: 'border-color 0.2s, box-shadow 0.2s',
+      backgroundColor: '#f8fafc',
+    },
+    button: {
+      marginTop: '24px',
+      padding: '12px 20px',
+      backgroundColor: '#2563eb',
+      color: '#ffffff',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '15px',
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'background-color 0.2s, transform 0.1s',
+      boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+    },
+    buttonDisabled: {
+      backgroundColor: '#93c5fd',
+      cursor: 'not-allowed',
+    },
+    canvasContainer: {
+      flex: 1,
+      height: '100vh',
+      backgroundColor: '#f1f5f9',
+      position: 'relative',
+    },
+    loaderOverlay: {
+      position: 'absolute',
+      top: '20px',
+      left: '20px',
+      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+      padding: '8px 16px',
+      borderRadius: '20px',
+      fontSize: '14px',
+      fontWeight: 500,
+      color: '#2563eb',
+      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)',
+      zIndex: 10,
+    }
+  };
+
   return (
-    <div style={{ height: '100vh' }}>
-      <button onClick={fetchSTL} disabled={loading}>Load STL</button>
-      {loading && <p>Loading...</p>}
-      <Canvas>
-        <ambientLight />
-        <pointLight position={[10, 10, 10]} />
-        <STLViewer url={stlUrl} />
-        <OrbitControls />
-      </Canvas>
+    <div style={styles.container}>
+      <style>{`
+        input:focus {
+          border-color: #3b82f6 !important;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+          background-color: #ffffff !important;
+        }
+        button:hover:not(:disabled) {
+          background-color: #1d4ed8 !important;
+        }
+        button:active:not(:disabled) {
+          transform: translateY(1px);
+        }
+      `}</style>
+
+      <div style={styles.sidebar}>
+        <h1 style={styles.title}>Gridfinity Generator</h1>
+        <p style={styles.subtitle}>Customize parameters to build your configuration baseplate.</p>
+        
+        <form onSubmit={(e) => { e.preventDefault(); generateSTL(); }} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={styles.grid}>
+            <div style={styles.formField}>
+              <label style={styles.label}>Total Width (mm)</label>
+              <input type="number" name="total_width_mm" value={formData.total_width_mm} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.label}>Total Length (mm)</label>
+              <input type="number" name="total_length_mm" value={formData.total_length_mm} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.label}>Cell Width (mm)</label>
+              <input type="number" name="cell_w" value={formData.cell_w} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.label}>Cell Length (mm)</label>
+              <input type="number" name="cell_l" value={formData.cell_l} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.label}>Printer Width (mm)</label>
+              <input type="number" name="printer_w" value={formData.printer_w} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.label}>Printer Length (mm)</label>
+              <input type="number" name="printer_l" value={formData.printer_l} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.label}>Base Height (mm)</label>
+              <input type="number" name="base_height" value={formData.base_height} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.label}>Tile Gap (mm)</label>
+              <input type="number" name="tile_gap_mm" value={formData.tile_gap_mm} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+            <div style={styles.fullWidthField}>
+              <label style={styles.label}>Corner Radius (mm)</label>
+              <input type="number" name="cut_corner_radius" value={formData.cut_corner_radius} onChange={handleInputChange} step="0.1" style={styles.input} />
+            </div>
+          </div>
+          
+          <button 
+            type="submit" 
+            disabled={loading} 
+            style={{...styles.button, ...(loading ? styles.buttonDisabled : {})}}
+          >
+            {loading ? 'Generating Layout...' : 'Generate and Load STL'}
+          </button>
+        </form>
+      </div>
+
+      <div style={styles.canvasContainer}>
+        {loading && <div style={styles.loaderOverlay}>Loading preview...</div>}
+        <Canvas shadows style={{ height: '100%' }} camera={{ position: [0, 150, 200], fov: 45 }}>
+          <ambientLight intensity={0.4} />
+          
+          {/* Key Light to catch sloped edge highlights */}
+          <directionalLight 
+            position={[80, 150, 50]} 
+            intensity={1.2} 
+            castShadow
+            shadow-mapSize={[2048, 2048]}
+          />
+          
+          {/* Soft Fill Light to avoid pure black shadows on profiles */}
+          <directionalLight 
+            position={[-80, 100, -50]} 
+            intensity={0.4} 
+          />
+          
+          <STLViewer url={stlUrl} controlsRef={controlsRef} />
+          <CameraControls ref={controlsRef} />
+        </Canvas>
+      </div>
     </div>
   );
 }
