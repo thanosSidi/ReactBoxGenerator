@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { CameraControls } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
+import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 function useMediaQuery(query) {
@@ -26,6 +27,7 @@ function useMediaQuery(query) {
 
 function STLViewer({ url, controlsRef }) {
   const [geometry, setGeometry] = useState(null);
+  const meshRef = useRef();
 
   useEffect(() => {
     if (url) {
@@ -55,10 +57,23 @@ function STLViewer({ url, controlsRef }) {
   }, [url]);
 
   useEffect(() => {
-    if (geometry && controlsRef.current) {
+    if (geometry && meshRef.current && controlsRef.current) {
       geometry.computeBoundingBox();
       const box = geometry.boundingBox;
-      controlsRef.current.fitToBox(box, true);
+      const size = box.getSize(new THREE.Vector3()).length();
+      const camera = controlsRef.current.camera;
+
+      camera.near = Math.max(size / 10000, 0.1);
+      camera.far = Math.max(size * 100, 10000);
+      camera.updateProjectionMatrix();
+
+      controlsRef.current.maxDistance = camera.far / 2;
+      controlsRef.current.fitToBox(meshRef.current, true, {
+        paddingTop: size * 0.08,
+        paddingRight: size * 0.08,
+        paddingBottom: size * 0.08,
+        paddingLeft: size * 0.08,
+      });
       controlsRef.current.rotatePolarTo(1.1, false); // Dynamic isometric angle to capture sloped facets
     }
   }, [geometry, controlsRef]);
@@ -66,7 +81,7 @@ function STLViewer({ url, controlsRef }) {
   if (!geometry) return null;
 
   return (
-    <mesh geometry={geometry} castShadow receiveShadow>
+    <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
       <meshPhysicalMaterial 
         color="#dd7616" 
         roughness={0.4}
@@ -81,6 +96,7 @@ function STLViewer({ url, controlsRef }) {
         sheen={1.0}                 // Intensity of the edge glow
         sheenRoughness={0.5}        // Softness of the edge highlights
         sheenColor="#ff9d42"        // A slightly lighter tint of your base orange for realistic highlights
+        side={THREE.DoubleSide}
       />
     </mesh>
   );
@@ -98,7 +114,7 @@ function App() {
     cell_l: 40,
     printer_w: 250,
     printer_l: 250,
-    base_height: 3.5,
+    base_height: 3.2,
     tile_gap_mm: 20,
     cut_corner_radius: 3.0
   });
@@ -356,7 +372,7 @@ function App() {
 
       <div style={styles.canvasContainer}>
         {loading && <div style={styles.loaderOverlay}>Loading preview...</div>}
-        <Canvas shadows style={{ height: '100%' }} camera={{ position: [0, 150, 200], fov: 45 }}>
+        <Canvas shadows style={{ height: '100%' }} camera={{ position: [0, 150, 200], fov: 45, near: 0.1, far: 100000 }}>
           <ambientLight intensity={0.4} />
           
           {/* Key Light to catch sloped edge highlights */}
