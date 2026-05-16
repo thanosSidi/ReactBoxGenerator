@@ -2,8 +2,27 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { CameraControls } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
-import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => (
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  ));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mediaQuery = window.matchMedia(query);
+    const handleChange = (event) => setMatches(event.matches);
+
+    setMatches(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleChange);
+
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [query]);
+
+  return matches;
+}
 
 function STLViewer({ url, controlsRef }) {
   const [geometry, setGeometry] = useState(null);
@@ -71,6 +90,7 @@ function App() {
   const [stlUrl, setStlUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const controlsRef = useRef();
+  const isMobile = useMediaQuery('(max-width: 760px)');
   const [formData, setFormData] = useState({
     total_width_mm: 80,
     total_length_mm: 80,
@@ -112,30 +132,59 @@ function App() {
     setLoading(false);
   };
 
+  const downloadSTL = async () => {
+    if (!stlUrl) return;
+
+    try {
+      const response = await fetch(stlUrl);
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+
+      link.href = objectUrl;
+      link.download = 'gridfinity-baseplate.stl';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error('Error downloading STL:', error);
+      alert('Failed to download STL');
+    }
+  };
+
   const styles = {
     container: {
       display: 'flex',
-      height: '100vh',
+      flexDirection: isMobile ? 'column' : 'row',
+      minHeight: '100vh',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       backgroundColor: '#f8fafc',
       color: '#1e293b',
     },
     sidebar: {
-      width: '420px',
-      padding: '32px',
-      overflowY: 'auto',
+      width: isMobile ? 'auto' : '420px',
+      maxHeight: isMobile ? 'none' : '100vh',
+      boxSizing: 'border-box',
+      padding: isMobile ? '20px 16px' : '32px',
+      overflowY: isMobile ? 'visible' : 'auto',
       backgroundColor: '#ffffff',
-      borderRight: '1px solid #e2e8f0',
+      borderRight: isMobile ? 'none' : '1px solid #e2e8f0',
+      borderBottom: isMobile ? '1px solid #e2e8f0' : 'none',
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
       display: 'flex',
       flexDirection: 'column',
     },
     title: {
-      fontSize: '24px',
+      fontSize: isMobile ? '22px' : '24px',
       fontWeight: 700,
       margin: '0 0 8px 0',
       color: '#1e3a8a',
-      letterSpacing: '-0.5px',
+      letterSpacing: '0',
     },
     subtitle: {
       fontSize: '14px',
@@ -144,8 +193,8 @@ function App() {
     },
     grid: {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '16px 12px',
+      gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+      gap: isMobile ? '12px' : '16px 12px',
     },
     formField: {
       display: 'flex',
@@ -153,7 +202,7 @@ function App() {
       gap: '6px',
     },
     fullWidthField: {
-      gridColumn: 'span 2',
+      gridColumn: isMobile ? 'auto' : 'span 2',
       display: 'flex',
       flexDirection: 'column',
       gap: '6px',
@@ -167,13 +216,15 @@ function App() {
       padding: '10px 14px',
       borderRadius: '8px',
       border: '1px solid #cbd5e1',
-      fontSize: '14px',
+      fontSize: '16px',
       outline: 'none',
       transition: 'border-color 0.2s, box-shadow 0.2s',
       backgroundColor: '#f8fafc',
+      boxSizing: 'border-box',
+      width: '100%',
     },
     button: {
-      marginTop: '24px',
+      marginTop: isMobile ? '18px' : '24px',
       padding: '12px 20px',
       backgroundColor: '#2563eb',
       color: '#ffffff',
@@ -189,16 +240,29 @@ function App() {
       backgroundColor: '#93c5fd',
       cursor: 'not-allowed',
     },
+    secondaryButton: {
+      marginTop: '12px',
+      padding: '12px 20px',
+      backgroundColor: '#ffffff',
+      color: '#2563eb',
+      border: '1px solid #bfdbfe',
+      borderRadius: '8px',
+      fontSize: '15px',
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'background-color 0.2s, border-color 0.2s',
+    },
     canvasContainer: {
       flex: 1,
-      height: '100vh',
+      minHeight: isMobile ? '45vh' : '100vh',
+      height: isMobile ? '45vh' : '100vh',
       backgroundColor: '#f1f5f9',
       position: 'relative',
     },
     loaderOverlay: {
       position: 'absolute',
-      top: '20px',
-      left: '20px',
+      top: isMobile ? '12px' : '20px',
+      left: isMobile ? '12px' : '20px',
       backgroundColor: 'rgba(255, 255, 255, 0.9)',
       padding: '8px 16px',
       borderRadius: '20px',
@@ -277,6 +341,16 @@ function App() {
           >
             {loading ? 'Generating Layout...' : 'Generate and Load STL'}
           </button>
+
+          {stlUrl && (
+            <button
+              type="button"
+              onClick={downloadSTL}
+              style={styles.secondaryButton}
+            >
+              Download STL
+            </button>
+          )}
         </form>
       </div>
 
