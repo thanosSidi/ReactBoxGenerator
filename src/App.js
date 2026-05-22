@@ -5,6 +5,35 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
+const API_BASE_URL = 'http://16.16.53.53';
+
+const generatorTabs = [
+  { id: 'baseplate', label: 'Baseplate' },
+  { id: 'box', label: 'Box' },
+];
+
+const baseplateFields = [
+  { name: 'total_width_mm', label: 'Total Width (mm)' },
+  { name: 'total_length_mm', label: 'Total Length (mm)' },
+  { name: 'cell_w', label: 'Cell Width (mm)' },
+  { name: 'cell_l', label: 'Cell Length (mm)' },
+  { name: 'printer_w', label: 'Printer Width (mm)' },
+  { name: 'printer_l', label: 'Printer Length (mm)' },
+  { name: 'base_height', label: 'Base Height (mm)' },
+  { name: 'tile_gap_mm', label: 'Tile Gap (mm)' },
+  { name: 'cut_corner_radius', label: 'Corner Radius (mm)', fullWidth: true },
+];
+
+const boxFields = [
+  { name: 'box_wall_thickness', label: 'Wall Thickness (mm)' },
+  { name: 'box_height', label: 'Box Height (mm)' },
+  { name: 'total_width_mm', label: 'Total Width (mm)' },
+  { name: 'total_length_mm', label: 'Total Length (mm)' },
+  { name: 'cell_w', label: 'Cell Width (mm)' },
+  { name: 'cell_l', label: 'Cell Length (mm)' },
+  { name: 'box_base_thickness', label: 'Base Thickness (mm)', fullWidth: true },
+];
+
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(() => (
     typeof window !== 'undefined' ? window.matchMedia(query).matches : false
@@ -36,14 +65,15 @@ function STLViewer({ url, controlsRef }) {
         url,
         (geom) => {
           // 1. Strip flat data
-          geom.deleteAttribute('normal'); 
-          
-          // 2. FIXED: Use the direct imported module variable instead of THREE.*
-          geom = BufferGeometryUtils.mergeVertices(geom); 
-          
-          // 3. Compute clean vector slopes
-          geom.computeVertexNormals(); 
-          
+          geom.center();
+
+          geom.deleteAttribute('normal');
+
+          geom = BufferGeometryUtils.mergeVertices(geom);
+
+          geom.computeVertexNormals();
+          geom.computeBoundingSphere();
+
           setGeometry(geom);
         },
         (progress) => {
@@ -81,7 +111,8 @@ function STLViewer({ url, controlsRef }) {
   if (!geometry) return null;
 
   return (
-    <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
+    <mesh ref={meshRef} geometry={geometry} castShadow={false}
+    receiveShadow={true}>
       <meshPhysicalMaterial 
         color="#dd7616" 
         roughness={0.4}
@@ -93,10 +124,10 @@ function STLViewer({ url, controlsRef }) {
         clearcoatRoughness={0.2}    // Keeps the top gloss layer relatively sharp
         
         // 2. SHEEN (Mimics micro-fibers/fuzz or the soft look of matte plastic edges)
-        sheen={1.0}                 // Intensity of the edge glow
-        sheenRoughness={0.5}        // Softness of the edge highlights
+        sheen={0.1}                 // Intensity of the edge glow
+        sheenRoughness={0.1}        // Softness of the edge highlights
         sheenColor="#ff9d42"        // A slightly lighter tint of your base orange for realistic highlights
-        side={THREE.DoubleSide}
+        side={THREE.FrontSide}
       />
     </mesh>
   );
@@ -104,10 +135,12 @@ function STLViewer({ url, controlsRef }) {
 
 function App() {
   const [stlUrl, setStlUrl] = useState('');
+  const [generatedType, setGeneratedType] = useState('baseplate');
+  const [activeTab, setActiveTab] = useState('baseplate');
   const [loading, setLoading] = useState(false);
   const controlsRef = useRef();
   const isMobile = useMediaQuery('(max-width: 760px)');
-  const [formData, setFormData] = useState({
+  const [baseplateFormData, setBaseplateFormData] = useState({
     total_width_mm: 80,
     total_length_mm: 80,
     cell_w: 40,
@@ -118,25 +151,46 @@ function App() {
     tile_gap_mm: 20,
     cut_corner_radius: 3.0
   });
+  const [boxFormData, setBoxFormData] = useState({
+    box_wall_thickness: 1,
+    total_width_mm: 80,
+    total_length_mm: 80,
+    cell_w: 40,
+    cell_l: 40,
+    box_height: 30,
+    box_base_thickness: 5
+  });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: parseFloat(value) || 0 });
+    const parsedValue = parseFloat(value) || 0;
+
+    if (activeTab === 'baseplate') {
+      setBaseplateFormData({ ...baseplateFormData, [name]: parsedValue });
+    } else {
+      setBoxFormData({ ...boxFormData, [name]: parsedValue });
+    }
   };
 
   const generateSTL = async () => {
+    const isBoxGenerator = activeTab === 'box';
+    const submittedType = isBoxGenerator ? 'box' : 'baseplate';
+    const endpoint = isBoxGenerator ? '/box_generate' : '/generate-baseplate';
+    const payload = isBoxGenerator ? boxFormData : baseplateFormData;
+
     setLoading(true);
     try {
-      const response = await fetch('http://16.16.53.53/generate-baseplate', {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (response.ok) {
-        const downloadUrl = `http://16.16.53.53/download/${data.request_id}`;
+        const downloadUrl = `${API_BASE_URL}/download/${data.request_id}`;
+        setGeneratedType(submittedType);
         setStlUrl(downloadUrl);
       } else {
         alert('Error generating STL: ' + data.detail);
@@ -162,7 +216,7 @@ function App() {
       const link = document.createElement('a');
 
       link.href = objectUrl;
-      link.download = 'gridfinity-baseplate.stl';
+      link.download = generatedType === 'box' ? 'gridfinity-box.stl' : 'gridfinity-baseplate.stl';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -206,6 +260,32 @@ function App() {
       fontSize: '14px',
       color: '#64748b',
       margin: '0 0 24px 0',
+    },
+    tabs: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '4px',
+      padding: '4px',
+      marginBottom: '24px',
+      borderRadius: '8px',
+      backgroundColor: '#e2e8f0',
+    },
+    tabButton: {
+      minHeight: '40px',
+      padding: '9px 12px',
+      border: 'none',
+      borderRadius: '6px',
+      backgroundColor: 'transparent',
+      color: '#475569',
+      fontSize: '14px',
+      fontWeight: 650,
+      cursor: 'pointer',
+      transition: 'background-color 0.2s, color 0.2s, box-shadow 0.2s',
+    },
+    activeTabButton: {
+      backgroundColor: '#ffffff',
+      color: '#1e3a8a',
+      boxShadow: '0 1px 3px 0 rgb(15 23 42 / 0.12)',
     },
     grid: {
       display: 'grid',
@@ -301,6 +381,9 @@ function App() {
         button:hover:not(:disabled) {
           background-color: #1d4ed8 !important;
         }
+        .generator-tab:hover:not(:disabled) {
+          background-color: #ffffff !important;
+        }
         button:active:not(:disabled) {
           transform: translateY(1px);
         }
@@ -308,46 +391,51 @@ function App() {
 
       <div style={styles.sidebar}>
         <h1 style={styles.title}>Gridfinity Generator</h1>
-        <p style={styles.subtitle}>Customize parameters to build your configuration baseplate.</p>
+        <p style={styles.subtitle}>
+          Customize parameters to build your {activeTab === 'box' ? 'grid-compatible box.' : 'configuration baseplate.'}
+        </p>
+
+        <div style={styles.tabs} role="tablist" aria-label="Generator type">
+          {generatorTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className="generator-tab"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                ...styles.tabButton,
+                ...(activeTab === tab.id ? styles.activeTabButton : {}),
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         
         <form onSubmit={(e) => { e.preventDefault(); generateSTL(); }} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div style={styles.grid}>
-            <div style={styles.formField}>
-              <label style={styles.label}>Total Width (mm)</label>
-              <input type="number" name="total_width_mm" value={formData.total_width_mm} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.label}>Total Length (mm)</label>
-              <input type="number" name="total_length_mm" value={formData.total_length_mm} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.label}>Cell Width (mm)</label>
-              <input type="number" name="cell_w" value={formData.cell_w} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.label}>Cell Length (mm)</label>
-              <input type="number" name="cell_l" value={formData.cell_l} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.label}>Printer Width (mm)</label>
-              <input type="number" name="printer_w" value={formData.printer_w} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.label}>Printer Length (mm)</label>
-              <input type="number" name="printer_l" value={formData.printer_l} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.label}>Base Height (mm)</label>
-              <input type="number" name="base_height" value={formData.base_height} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.label}>Tile Gap (mm)</label>
-              <input type="number" name="tile_gap_mm" value={formData.tile_gap_mm} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
-            <div style={styles.fullWidthField}>
-              <label style={styles.label}>Corner Radius (mm)</label>
-              <input type="number" name="cut_corner_radius" value={formData.cut_corner_radius} onChange={handleInputChange} step="0.1" style={styles.input} />
-            </div>
+            {(activeTab === 'baseplate' ? baseplateFields : boxFields).map((field) => {
+              const fieldValue = activeTab === 'baseplate'
+                ? baseplateFormData[field.name]
+                : boxFormData[field.name];
+
+              return (
+                <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
+                  <label style={styles.label}>{field.label}</label>
+                  <input
+                    type="number"
+                    name={field.name}
+                    value={fieldValue}
+                    onChange={handleInputChange}
+                    step="0.1"
+                    min="0"
+                    style={styles.input}
+                  />
+                </div>
+              );
+            })}
           </div>
           
           <button 
@@ -355,7 +443,7 @@ function App() {
             disabled={loading} 
             style={{...styles.button, ...(loading ? styles.buttonDisabled : {})}}
           >
-            {loading ? 'Generating Layout...' : 'Generate and Load STL'}
+            {loading ? 'Generating Layout...' : `Generate ${activeTab === 'box' ? 'Box' : 'Baseplate'} STL`}
           </button>
 
           {stlUrl && (
@@ -372,15 +460,17 @@ function App() {
 
       <div style={styles.canvasContainer}>
         {loading && <div style={styles.loaderOverlay}>Loading preview...</div>}
-        <Canvas shadows style={{ height: '100%' }} camera={{ position: [0, 150, 200], fov: 45, near: 0.1, far: 100000 }}>
+        <Canvas shadows={false} style={{ height: '100%' }} camera={{ position: [0, 150, 200], fov: 45, near: 0.1, far: 100000 }}>
           <ambientLight intensity={0.4} />
           
           {/* Key Light to catch sloped edge highlights */}
           <directionalLight 
-            position={[80, 150, 50]} 
-            intensity={1.2} 
-            castShadow
-            shadow-mapSize={[2048, 2048]}
+              position={[80, 150, 50]} 
+              intensity={1.2}
+              castShadow
+              shadow-mapSize={[2048, 2048]}
+              shadow-bias={-0.0005}
+              shadow-normalBias={0.02}
           />
           
           {/* Soft Fill Light to avoid pure black shadows on profiles */}
