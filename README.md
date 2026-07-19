@@ -23,7 +23,7 @@ Set `REACT_APP_API_BASE_URL` in `.env`, then build the static frontend:
 npm run build
 ```
 
-Upload the generated `build/` directory to your VPS web root, for example `/var/www/boxgenerator`.
+Upload the generated `build/` directory to your VPS web root, for example `/var/www/html/boxgenerator`.
 
 ## GitHub Actions VPS Deploy
 
@@ -33,7 +33,7 @@ Add these repository secrets in GitHub under Settings -> Secrets and variables -
 - `VPS_HOST`: VPS IP address or domain
 - `VPS_USERNAME`: SSH username
 - `VPS_PASSWORD`: SSH password
-- `VPS_TARGET_DIR`: Folder served by Nginx, for example `/var/www/boxgenerator`
+- `VPS_TARGET_DIR`: Folder served by Nginx, for example `/var/www/html/boxgenerator`
 - `VPS_PORT`: SSH port, usually `22`
 
 ## Usage
