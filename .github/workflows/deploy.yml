@@ -1,13 +1,11 @@
-name: Build and Deploy to S3
+name: Build and Deploy to VPS
 
 on:
   push:
     branches:
       - main
 
-# CRITICAL: OIDC needs permission to request the token
 permissions:
-  id-token: write
   contents: read
 
 jobs:
@@ -23,23 +21,32 @@ jobs:
         node-version: 20
         cache: 'npm'
 
-    # Step 3: Install dependencies using standard install instead of strict ci
     - name: Install Dependencies
-      run: npm install
+      run: npm ci
 
-    # Step 4: Build the React application (Bypassing strict warning-errors)
     - name: Build Application
       env:
         CI: false
+        REACT_APP_API_BASE_URL: ${{ secrets.REACT_APP_API_BASE_URL }}
       run: npm run build
 
-    # Configure AWS using temporary OIDC tokens
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
+    - name: Prepare VPS Directory
+      uses: appleboy/ssh-action@v1.0.3
       with:
-        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-        aws-region: us-east-1 # Your S3 region
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        password: ${{ secrets.VPS_PASSWORD }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: mkdir -p "${{ secrets.VPS_TARGET_DIR }}"
 
-    - name: Deploy to S3 Bucket
-      run: |
-        aws s3 sync build/ s3://${{ secrets.AWS_S3_BUCKET_NAME }} --delete
+    - name: Deploy Build to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        password: ${{ secrets.VPS_PASSWORD }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        source: build/*
+        target: ${{ secrets.VPS_TARGET_DIR }}
+        strip_components: 1
+        rm: true
