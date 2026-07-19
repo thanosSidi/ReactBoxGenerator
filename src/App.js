@@ -11,7 +11,7 @@ const generatorTabs = [
   { id: 'baseplate', label: 'Baseplate' },
   { id: 'box', label: 'Box' },
 ];
-
+  
 const baseplateFields = [
   { name: 'total_width_mm', label: 'Total Width (mm)' },
   { name: 'total_length_mm', label: 'Total Length (mm)' },
