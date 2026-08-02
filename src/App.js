@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { CameraControls } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import * as THREE from 'three';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
 
@@ -31,9 +30,13 @@ const boxFields = [
   { name: 'total_length_mm', label: 'Total Length (mm)' },
   { name: 'cell_w', label: 'Cell Width (mm)' },
   { name: 'cell_l', label: 'Cell Length (mm)' },
+  { name: 'box_base_thickness', label: 'Base Thickness (mm)', fullWidth: true },
+];
+
+const subdivisionFields = [
   { name: 'row_subdivisions', label: 'Row Subdivisions', step: 1, min: 1 },
   { name: 'column_subdivisions', label: 'Column Subdivisions', step: 1, min: 1 },
-  { name: 'box_base_thickness', label: 'Base Thickness (mm)', fullWidth: true },
+  { name: 'inner_wall_thickness', label: 'Inner Wall Thickness (mm)', fullWidth: true },
 ];
 
 function useMediaQuery(query) {
@@ -59,6 +62,9 @@ function useMediaQuery(query) {
 function STLViewer({ url, controlsRef }) {
   const [geometry, setGeometry] = useState(null);
   const meshRef = useRef();
+  const edgeGeometry = useMemo(() => (
+    geometry ? new THREE.EdgesGeometry(geometry, 35) : null
+  ), [geometry]);
 
   useEffect(() => {
     if (url) {
@@ -66,13 +72,7 @@ function STLViewer({ url, controlsRef }) {
       loader.load(
         url,
         (geom) => {
-          // 1. Strip flat data
           geom.center();
-
-          geom.deleteAttribute('normal');
-
-          geom = BufferGeometryUtils.mergeVertices(geom);
-
           geom.computeVertexNormals();
           geom.computeBoundingSphere();
 
@@ -113,25 +113,22 @@ function STLViewer({ url, controlsRef }) {
   if (!geometry) return null;
 
   return (
-    <mesh ref={meshRef} geometry={geometry} castShadow={false}
-    receiveShadow={true}>
-      <meshPhysicalMaterial 
-        color="#dd7616" 
-        roughness={0.4}
-        metalness={0.0}
-        flatShading={false}
-        
-        // 1. CLEARCOAT (Simulates a smooth outer lacquer/finish layer over the plastic)
-        clearcoat={0.3}             // Subtle glossy reflection layer on top
-        clearcoatRoughness={0.2}    // Keeps the top gloss layer relatively sharp
-        
-        // 2. SHEEN (Mimics micro-fibers/fuzz or the soft look of matte plastic edges)
-        sheen={0.1}                 // Intensity of the edge glow
-        sheenRoughness={0.1}        // Softness of the edge highlights
-        sheenColor="#ff9d42"        // A slightly lighter tint of your base orange for realistic highlights
-        side={THREE.FrontSide}
-      />
-    </mesh>
+    <group>
+      <mesh ref={meshRef} geometry={geometry} castShadow={false} receiveShadow={true}>
+        <meshStandardMaterial
+          color="#d97706"
+          roughness={0.72}
+          metalness={0}
+          flatShading={true}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      {edgeGeometry && (
+        <lineSegments geometry={edgeGeometry}>
+          <lineBasicMaterial color="#7c2d12" transparent opacity={0.42} />
+        </lineSegments>
+      )}
+    </group>
   );
 }
 
@@ -140,6 +137,7 @@ function App() {
   const [generatedType, setGeneratedType] = useState('baseplate');
   const [activeTab, setActiveTab] = useState('baseplate');
   const [loading, setLoading] = useState(false);
+  const [subdivisionEnabled, setSubdivisionEnabled] = useState(false);
   const controlsRef = useRef();
   const isMobile = useMediaQuery('(max-width: 760px)');
   const [baseplateFormData, setBaseplateFormData] = useState({
@@ -155,6 +153,7 @@ function App() {
   });
   const [boxFormData, setBoxFormData] = useState({
     box_wall_thickness: 1,
+    inner_wall_thickness: 1,
     total_width_mm: 80,
     total_length_mm: 80,
     cell_w: 40,
@@ -180,7 +179,19 @@ function App() {
     const isBoxGenerator = activeTab === 'box';
     const submittedType = isBoxGenerator ? 'box' : 'baseplate';
     const endpoint = isBoxGenerator ? '/box_generate' : '/generate-baseplate';
-    const payload = isBoxGenerator ? boxFormData : baseplateFormData;
+    const payload = isBoxGenerator
+      ? subdivisionEnabled
+        ? boxFormData
+        : {
+            box_wall_thickness: boxFormData.box_wall_thickness,
+            total_width_mm: boxFormData.total_width_mm,
+            total_length_mm: boxFormData.total_length_mm,
+            cell_w: boxFormData.cell_w,
+            cell_l: boxFormData.cell_l,
+            box_height: boxFormData.box_height,
+            box_base_thickness: boxFormData.box_base_thickness,
+          }
+      : baseplateFormData;
 
     setLoading(true);
     try {
@@ -323,6 +334,35 @@ function App() {
       boxSizing: 'border-box',
       width: '100%',
     },
+    fieldGroup: {
+      marginTop: '18px',
+      padding: '14px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      backgroundColor: '#f8fafc',
+    },
+    checkboxLabel: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      fontSize: '14px',
+      fontWeight: 650,
+      color: '#334155',
+      cursor: 'pointer',
+      userSelect: 'none',
+    },
+    checkbox: {
+      width: '16px',
+      height: '16px',
+      accentColor: '#2563eb',
+      cursor: 'pointer',
+    },
+    nestedGrid: {
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+      gap: isMobile ? '12px' : '16px 12px',
+      marginTop: '14px',
+    },
     button: {
       marginTop: isMobile ? '18px' : '24px',
       padding: '12px 20px',
@@ -441,6 +481,39 @@ function App() {
               );
             })}
           </div>
+
+          {activeTab === 'box' && (
+            <div style={styles.fieldGroup}>
+              <label style={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={subdivisionEnabled}
+                  onChange={(e) => setSubdivisionEnabled(e.target.checked)}
+                  style={styles.checkbox}
+                />
+                Box Sub-Division Feature
+              </label>
+
+              {subdivisionEnabled && (
+                <div style={styles.nestedGrid}>
+                  {subdivisionFields.map((field) => (
+                    <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
+                      <label style={styles.label}>{field.label}</label>
+                      <input
+                        type="number"
+                        name={field.name}
+                        value={boxFormData[field.name]}
+                        onChange={handleInputChange}
+                        step={field.step || 0.1}
+                        min={field.min || 0}
+                        style={styles.input}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           
           <button 
             type="submit" 
