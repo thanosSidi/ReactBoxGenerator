@@ -31,6 +31,8 @@ const boxFields = [
   { name: 'total_length_mm', label: 'Total Length (mm)' },
   { name: 'cell_w', label: 'Cell Width (mm)' },
   { name: 'cell_l', label: 'Cell Length (mm)' },
+  { name: 'row_subdivisions', label: 'Row Subdivisions', step: 1, min: 1 },
+  { name: 'column_subdivisions', label: 'Column Subdivisions', step: 1, min: 1 },
   { name: 'box_base_thickness', label: 'Base Thickness (mm)', fullWidth: true },
 ];
 
@@ -157,6 +159,8 @@ function App() {
     total_length_mm: 80,
     cell_w: 40,
     cell_l: 40,
+    row_subdivisions: 1,
+    column_subdivisions: 1,
     box_height: 30,
     box_base_thickness: 5
   });
@@ -429,8 +433,8 @@ function App() {
                     name={field.name}
                     value={fieldValue}
                     onChange={handleInputChange}
-                    step="0.1"
-                    min="0"
+                    step={field.step || 0.1}
+                    min={field.min || 0}
                     style={styles.input}
                   />
                 </div>
