@@ -5,6 +5,7 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import * as THREE from 'three';
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
+const TOP_RAMP_MIN_INNER_WALL_HEIGHT_DIFFERENCE = 3.8;
 
 const generatorTabs = [
   { id: 'baseplate', label: 'Baseplate' },
@@ -36,7 +37,13 @@ const boxFields = [
 const subdivisionFields = [
   { name: 'row_subdivisions', label: 'Row Subdivisions', step: 1, min: 1 },
   { name: 'column_subdivisions', label: 'Column Subdivisions', step: 1, min: 1 },
-  { name: 'inner_wall_thickness', label: 'Inner Wall Thickness (mm)', fullWidth: true },
+  { name: 'inner_wall_thickness', label: 'Inner Wall Thickness (mm)' },
+  { name: 'inner_wall_height_difference', label: 'Inner Wall Height Difference (mm)' },
+];
+
+const topRampPatternOptions = [
+  { value: 'none', label: 'None' },
+  { value: 'normal', label: 'Normal' },
 ];
 
 function useMediaQuery(query) {
@@ -59,7 +66,7 @@ function useMediaQuery(query) {
   return matches;
 }
 
-function STLViewer({ url, controlsRef }) {
+function STLViewer({ url, controlsRef, onSpecsChange }) {
   const [geometry, setGeometry] = useState(null);
   const meshRef = useRef();
   const edgeGeometry = useMemo(() => (
@@ -75,6 +82,14 @@ function STLViewer({ url, controlsRef }) {
           geom.center();
           geom.computeVertexNormals();
           geom.computeBoundingSphere();
+          geom.computeBoundingBox();
+
+          const dimensions = geom.boundingBox.getSize(new THREE.Vector3());
+          onSpecsChange({
+            width: dimensions.x,
+            depth: dimensions.y,
+            height: dimensions.z,
+          });
 
           setGeometry(geom);
         },
@@ -83,10 +98,14 @@ function STLViewer({ url, controlsRef }) {
         },
         (error) => {
           console.error('An error happened', error);
+          onSpecsChange(null);
         }
       );
+    } else {
+      setGeometry(null);
+      onSpecsChange(null);
     }
-  }, [url]);
+  }, [url, onSpecsChange]);
 
   useEffect(() => {
     if (geometry && meshRef.current && controlsRef.current) {
@@ -137,7 +156,9 @@ function App() {
   const [generatedType, setGeneratedType] = useState('baseplate');
   const [activeTab, setActiveTab] = useState('baseplate');
   const [loading, setLoading] = useState(false);
+  const [objectSpecs, setObjectSpecs] = useState(null);
   const [subdivisionEnabled, setSubdivisionEnabled] = useState(false);
+  const [topRampPatternEnabled, setTopRampPatternEnabled] = useState(false);
   const controlsRef = useRef();
   const isMobile = useMediaQuery('(max-width: 760px)');
   const [baseplateFormData, setBaseplateFormData] = useState({
@@ -147,7 +168,7 @@ function App() {
     cell_l: 40,
     printer_w: 250,
     printer_l: 250,
-    base_height: 3.2,
+    base_height: 3.4,
     tile_gap_mm: 20,
     cut_corner_radius: 3.0
   });
@@ -160,8 +181,10 @@ function App() {
     cell_l: 40,
     row_subdivisions: 1,
     column_subdivisions: 1,
+    inner_wall_height_difference: 0,
     box_height: 30,
-    box_base_thickness: 5
+    box_base_thickness: 5,
+    top_ramp_pattern: 'none'
   });
 
   const handleInputChange = (e) => {
@@ -175,23 +198,46 @@ function App() {
     }
   };
 
+  const handleSelectChange = (e) => {
+    const { name, value } = e.target;
+    setBoxFormData({ ...boxFormData, [name]: value });
+  };
+
   const generateSTL = async () => {
     const isBoxGenerator = activeTab === 'box';
     const submittedType = isBoxGenerator ? 'box' : 'baseplate';
     const endpoint = isBoxGenerator ? '/box_generate' : '/generate-baseplate';
-    const payload = isBoxGenerator
-      ? subdivisionEnabled
-        ? boxFormData
-        : {
-            box_wall_thickness: boxFormData.box_wall_thickness,
-            total_width_mm: boxFormData.total_width_mm,
-            total_length_mm: boxFormData.total_length_mm,
-            cell_w: boxFormData.cell_w,
-            cell_l: boxFormData.cell_l,
-            box_height: boxFormData.box_height,
-            box_base_thickness: boxFormData.box_base_thickness,
+    const topRampPattern = topRampPatternEnabled ? boxFormData.top_ramp_pattern : 'none';
+
+    if (
+      isBoxGenerator &&
+      subdivisionEnabled &&
+      topRampPattern !== 'none' &&
+      boxFormData.inner_wall_height_difference < TOP_RAMP_MIN_INNER_WALL_HEIGHT_DIFFERENCE
+    ) {
+      alert(`Inner Wall Height Difference must be at least ${TOP_RAMP_MIN_INNER_WALL_HEIGHT_DIFFERENCE} mm when Top Ramp Pattern is not None.`);
+      return;
+    }
+
+    const boxPayload = {
+      box_wall_thickness: boxFormData.box_wall_thickness,
+      total_width_mm: boxFormData.total_width_mm,
+      total_length_mm: boxFormData.total_length_mm,
+      cell_w: boxFormData.cell_w,
+      cell_l: boxFormData.cell_l,
+      box_height: boxFormData.box_height,
+      box_base_thickness: boxFormData.box_base_thickness,
+      top_ramp_pattern: topRampPattern,
+      ...(subdivisionEnabled
+        ? {
+            inner_wall_thickness: boxFormData.inner_wall_thickness,
+            row_subdivisions: boxFormData.row_subdivisions,
+            column_subdivisions: boxFormData.column_subdivisions,
+            inner_wall_height_difference: boxFormData.inner_wall_height_difference,
           }
-      : baseplateFormData;
+        : {}),
+    };
+    const payload = isBoxGenerator ? boxPayload : baseplateFormData;
 
     setLoading(true);
     try {
@@ -241,6 +287,14 @@ function App() {
       alert('Failed to download STL');
     }
   };
+
+  const formattedSpecs = objectSpecs
+    ? [
+        { label: 'Width', value: objectSpecs.width },
+        { label: 'Depth', value: objectSpecs.depth },
+        { label: 'Height', value: objectSpecs.height },
+      ]
+    : [];
 
   const styles = {
     container: {
@@ -334,6 +388,18 @@ function App() {
       boxSizing: 'border-box',
       width: '100%',
     },
+    select: {
+      padding: '10px 14px',
+      borderRadius: '8px',
+      border: '1px solid #cbd5e1',
+      fontSize: '16px',
+      outline: 'none',
+      transition: 'border-color 0.2s, box-shadow 0.2s',
+      backgroundColor: '#f8fafc',
+      boxSizing: 'border-box',
+      width: '100%',
+      cursor: 'pointer',
+    },
     fieldGroup: {
       marginTop: '18px',
       padding: '14px',
@@ -411,6 +477,37 @@ function App() {
       color: '#2563eb',
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)',
       zIndex: 10,
+    },
+    specsOverlay: {
+      position: 'absolute',
+      right: isMobile ? '12px' : '20px',
+      bottom: isMobile ? '12px' : '20px',
+      minWidth: isMobile ? '160px' : '190px',
+      padding: '12px 14px',
+      borderRadius: '8px',
+      backgroundColor: 'rgba(255, 255, 255, 0.92)',
+      border: '1px solid rgba(226, 232, 240, 0.9)',
+      boxShadow: '0 8px 18px -10px rgb(15 23 42 / 0.45)',
+      zIndex: 10,
+    },
+    specsTitle: {
+      margin: '0 0 8px 0',
+      fontSize: '13px',
+      fontWeight: 700,
+      color: '#334155',
+    },
+    specsRow: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      gap: '14px',
+      fontSize: '13px',
+      lineHeight: 1.55,
+      color: '#475569',
+    },
+    specsValue: {
+      fontVariantNumeric: 'tabular-nums',
+      fontWeight: 650,
+      color: '#0f172a',
     }
   };
 
@@ -418,6 +515,11 @@ function App() {
     <div style={styles.container}>
       <style>{`
         input:focus {
+          border-color: #3b82f6 !important;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+          background-color: #ffffff !important;
+        }
+        select:focus {
           border-color: #3b82f6 !important;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
           background-color: #ffffff !important;
@@ -483,36 +585,70 @@ function App() {
           </div>
 
           {activeTab === 'box' && (
-            <div style={styles.fieldGroup}>
-              <label style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={subdivisionEnabled}
-                  onChange={(e) => setSubdivisionEnabled(e.target.checked)}
-                  style={styles.checkbox}
-                />
-                Box Sub-Division Feature
-              </label>
+            <>
+              <div style={styles.fieldGroup}>
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={subdivisionEnabled}
+                    onChange={(e) => setSubdivisionEnabled(e.target.checked)}
+                    style={styles.checkbox}
+                  />
+                  Box Sub-Division Feature
+                </label>
 
-              {subdivisionEnabled && (
-                <div style={styles.nestedGrid}>
-                  {subdivisionFields.map((field) => (
-                    <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
-                      <label style={styles.label}>{field.label}</label>
-                      <input
-                        type="number"
-                        name={field.name}
-                        value={boxFormData[field.name]}
-                        onChange={handleInputChange}
-                        step={field.step || 0.1}
-                        min={field.min || 0}
-                        style={styles.input}
-                      />
+                {subdivisionEnabled && (
+                  <div style={styles.nestedGrid}>
+                    {subdivisionFields.map((field) => (
+                      <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
+                        <label style={styles.label}>{field.label}</label>
+                        <input
+                          type="number"
+                          name={field.name}
+                          value={boxFormData[field.name]}
+                          onChange={handleInputChange}
+                          step={field.step || 0.1}
+                          min={field.min || 0}
+                          style={styles.input}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={styles.fieldGroup}>
+                <label style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={topRampPatternEnabled}
+                    onChange={(e) => setTopRampPatternEnabled(e.target.checked)}
+                    style={styles.checkbox}
+                  />
+                  Top Ramp Pattern
+                </label>
+
+                {topRampPatternEnabled && (
+                  <div style={styles.nestedGrid}>
+                    <div style={styles.fullWidthField}>
+                      <label style={styles.label}>Pattern</label>
+                      <select
+                        name="top_ramp_pattern"
+                        value={boxFormData.top_ramp_pattern}
+                        onChange={handleSelectChange}
+                        style={styles.select}
+                      >
+                        {topRampPatternOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
+            </>
           )}
           
           <button 
@@ -537,6 +673,17 @@ function App() {
 
       <div style={styles.canvasContainer}>
         {loading && <div style={styles.loaderOverlay}>Loading preview...</div>}
+        {objectSpecs && (
+          <div style={styles.specsOverlay}>
+            <p style={styles.specsTitle}>Object Specs</p>
+            {formattedSpecs.map((spec) => (
+              <div key={spec.label} style={styles.specsRow}>
+                <span>{spec.label}</span>
+                <span style={styles.specsValue}>{spec.value.toFixed(1)} mm</span>
+              </div>
+            ))}
+          </div>
+        )}
         <Canvas shadows={false} style={{ height: '100%' }} camera={{ position: [0, 150, 200], fov: 45, near: 0.1, far: 100000 }}>
           <ambientLight intensity={0.4} />
           
@@ -556,7 +703,7 @@ function App() {
             intensity={0.4} 
           />
           
-          <STLViewer url={stlUrl} controlsRef={controlsRef} />
+          <STLViewer url={stlUrl} controlsRef={controlsRef} onSpecsChange={setObjectSpecs} />
           <CameraControls ref={controlsRef} />
         </Canvas>
       </div>
