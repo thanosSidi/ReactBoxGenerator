@@ -195,6 +195,7 @@ function App() {
   const [joinedDivisionGroups, setJoinedDivisionGroups] = useState([]);
   const [editingJoinedGroupIndex, setEditingJoinedGroupIndex] = useState(null);
   const controlsRef = useRef();
+  const viewerRef = useRef(null);
   const isMobile = useMediaQuery('(max-width: 760px)');
   const isNarrowMobile = useMediaQuery('(max-width: 380px)');
   const [baseplateFormData, setBaseplateFormData] = useState({
@@ -328,6 +329,17 @@ function App() {
       }))
     ))
   ), [divisionRows, joinedDivisionGroups]);
+
+  useEffect(() => {
+    if (!stlUrl || !isMobile || !viewerRef.current) return;
+
+    window.requestAnimationFrame(() => {
+      viewerRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, [stlUrl, isMobile]);
 
   const generateSTL = async () => {
     const isBoxGenerator = activeTab === 'box';
@@ -703,8 +715,8 @@ function App() {
     canvasContainer: {
       flex: 1,
       order: isMobile && stlUrl ? 1 : 2,
-      minHeight: isMobile ? '36svh' : '100vh',
-      height: isMobile ? '36svh' : '100vh',
+      minHeight: isMobile ? '52svh' : '100vh',
+      height: isMobile ? '52svh' : '100vh',
       backgroundColor: '#f1f5f9',
       position: 'relative',
       borderBottom: isMobile ? '1px solid #e2e8f0' : 'none',
@@ -1012,7 +1024,7 @@ function App() {
         </form>
       </div>
 
-      <div style={styles.canvasContainer}>
+      <div ref={viewerRef} style={styles.canvasContainer}>
         {loading && <div style={styles.loaderOverlay}>Loading preview...</div>}
         {objectSpecs && (
           <div style={styles.specsOverlay}>
