@@ -46,6 +46,38 @@ const topRampPatternOptions = [
   { value: 'normal', label: 'Normal' },
 ];
 
+const mergeGroupColors = ['#f97316', '#14b8a6', '#8b5cf6', '#22c55e', '#ef4444', '#0ea5e9'];
+
+function getCellKey(row, column) {
+  return `${row}:${column}`;
+}
+
+function areCellsConnected(cells) {
+  if (cells.length <= 1) return false;
+
+  const cellKeys = new Set(cells.map((cell) => getCellKey(cell.row, cell.column)));
+  const visited = new Set([getCellKey(cells[0].row, cells[0].column)]);
+  const frontier = [cells[0]];
+
+  while (frontier.length) {
+    const { row, column } = frontier.pop();
+    [
+      { row: row - 1, column },
+      { row: row + 1, column },
+      { row, column: column - 1 },
+      { row, column: column + 1 },
+    ].forEach((neighbor) => {
+      const neighborKey = getCellKey(neighbor.row, neighbor.column);
+      if (cellKeys.has(neighborKey) && !visited.has(neighborKey)) {
+        visited.add(neighborKey);
+        frontier.push(neighbor);
+      }
+    });
+  }
+
+  return visited.size === cells.length;
+}
+
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(() => (
     typeof window !== 'undefined' ? window.matchMedia(query).matches : false
@@ -159,6 +191,9 @@ function App() {
   const [objectSpecs, setObjectSpecs] = useState(null);
   const [subdivisionEnabled, setSubdivisionEnabled] = useState(false);
   const [topRampPatternEnabled, setTopRampPatternEnabled] = useState(false);
+  const [selectedDivisionCells, setSelectedDivisionCells] = useState([]);
+  const [joinedDivisionGroups, setJoinedDivisionGroups] = useState([]);
+  const [editingJoinedGroupIndex, setEditingJoinedGroupIndex] = useState(null);
   const controlsRef = useRef();
   const isMobile = useMediaQuery('(max-width: 760px)');
   const [baseplateFormData, setBaseplateFormData] = useState({
@@ -203,6 +238,96 @@ function App() {
     setBoxFormData({ ...boxFormData, [name]: value });
   };
 
+  const divisionRows = Math.max(1, Math.floor(boxFormData.row_subdivisions || 1));
+  const divisionColumns = Math.max(1, Math.floor(boxFormData.column_subdivisions || 1));
+
+  const groupedCellMap = useMemo(() => {
+    const nextMap = new Map();
+    joinedDivisionGroups.forEach((group, groupIndex) => {
+      group.forEach((cell) => {
+        nextMap.set(getCellKey(cell.row, cell.column), groupIndex);
+      });
+    });
+    return nextMap;
+  }, [joinedDivisionGroups]);
+
+  const selectedCellSet = useMemo(() => (
+    new Set(selectedDivisionCells.map((cell) => getCellKey(cell.row, cell.column)))
+  ), [selectedDivisionCells]);
+
+  useEffect(() => {
+    setSelectedDivisionCells((cells) => cells.filter(
+      (cell) => cell.row < divisionRows && cell.column < divisionColumns
+    ));
+    setJoinedDivisionGroups((groups) => groups
+      .map((group) => group.filter((cell) => cell.row < divisionRows && cell.column < divisionColumns))
+      .filter((group) => group.length >= 2));
+    setEditingJoinedGroupIndex(null);
+  }, [divisionRows, divisionColumns]);
+
+  const toggleDivisionCell = (row, column) => {
+    const key = getCellKey(row, column);
+    const groupIndex = groupedCellMap.get(key);
+    if (groupIndex !== undefined) {
+      setEditingJoinedGroupIndex(groupIndex);
+      setSelectedDivisionCells(joinedDivisionGroups[groupIndex]);
+      return;
+    }
+
+    setSelectedDivisionCells((cells) => {
+      const exists = cells.some((cell) => cell.row === row && cell.column === column);
+      if (exists) {
+        return cells.filter((cell) => cell.row !== row || cell.column !== column);
+      }
+      return [...cells, { row, column }];
+    });
+  };
+
+  const mergeSelectedDivisionCells = () => {
+    if (!areCellsConnected(selectedDivisionCells)) {
+      alert('Select at least two edge-connected subdivisions to merge.');
+      return;
+    }
+
+    setJoinedDivisionGroups((groups) => {
+      if (editingJoinedGroupIndex === null) {
+        return [...groups, selectedDivisionCells];
+      }
+
+      return groups.map((group, groupIndex) => (
+        groupIndex === editingJoinedGroupIndex ? selectedDivisionCells : group
+      ));
+    });
+    setEditingJoinedGroupIndex(null);
+    setSelectedDivisionCells([]);
+  };
+
+  const clearDivisionSelection = () => {
+    setEditingJoinedGroupIndex(null);
+    setSelectedDivisionCells([]);
+  };
+
+  const removeJoinedDivisionGroup = (groupIndex) => {
+    setJoinedDivisionGroups((groups) => groups.filter((_, index) => index !== groupIndex));
+    setEditingJoinedGroupIndex(null);
+    setSelectedDivisionCells([]);
+  };
+
+  const clearJoinedDivisionGroups = () => {
+    setJoinedDivisionGroups([]);
+    setSelectedDivisionCells([]);
+    setEditingJoinedGroupIndex(null);
+  };
+
+  const joinedDivisionPayloadGroups = useMemo(() => (
+    joinedDivisionGroups.map((group) => (
+      group.map((cell) => ({
+        row: divisionRows - 1 - cell.row,
+        column: cell.column,
+      }))
+    ))
+  ), [divisionRows, joinedDivisionGroups]);
+
   const generateSTL = async () => {
     const isBoxGenerator = activeTab === 'box';
     const submittedType = isBoxGenerator ? 'box' : 'baseplate';
@@ -234,6 +359,15 @@ function App() {
             row_subdivisions: boxFormData.row_subdivisions,
             column_subdivisions: boxFormData.column_subdivisions,
             inner_wall_height_difference: boxFormData.inner_wall_height_difference,
+            ...(joinedDivisionGroups.length
+              ? {
+                  custom_divisions: {
+                    rows: divisionRows,
+                    columns: divisionColumns,
+                    joined_cells: joinedDivisionPayloadGroups,
+                  },
+                }
+              : {}),
           }
         : {}),
     };
@@ -429,6 +563,109 @@ function App() {
       gap: isMobile ? '12px' : '16px 12px',
       marginTop: '14px',
     },
+    mergePanel: {
+      gridColumn: isMobile ? 'auto' : 'span 2',
+      marginTop: '2px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+    },
+    divisionGrid: {
+      display: 'grid',
+      gridTemplateColumns: `repeat(${divisionColumns}, minmax(26px, 1fr))`,
+      gap: '5px',
+      padding: '10px',
+      borderRadius: '8px',
+      border: '1px solid #cbd5e1',
+      backgroundColor: '#ffffff',
+    },
+    divisionCell: {
+      aspectRatio: '1 / 1',
+      minWidth: 0,
+      minHeight: '26px',
+      border: '1px solid #cbd5e1',
+      borderRadius: '6px',
+      backgroundColor: '#f8fafc',
+      cursor: 'pointer',
+      fontSize: '11px',
+      fontWeight: 700,
+      color: '#475569',
+      fontVariantNumeric: 'tabular-nums',
+      transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s',
+    },
+    divisionCellSelected: {
+      backgroundColor: '#dbeafe',
+      borderColor: '#2563eb',
+      color: '#1e3a8a',
+      boxShadow: 'inset 0 0 0 2px #2563eb',
+    },
+    divisionCellMerged: {
+      color: '#ffffff',
+      borderColor: 'rgba(15, 23, 42, 0.18)',
+    },
+    divisionCellEditing: {
+      boxShadow: 'inset 0 0 0 3px #0f172a',
+    },
+    mergeActions: {
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+      gap: '8px',
+    },
+    compactButton: {
+      padding: '9px 12px',
+      borderRadius: '8px',
+      border: '1px solid #bfdbfe',
+      backgroundColor: '#ffffff',
+      color: '#2563eb',
+      fontSize: '13px',
+      fontWeight: 650,
+      cursor: 'pointer',
+    },
+    compactButtonDisabled: {
+      color: '#94a3b8',
+      borderColor: '#e2e8f0',
+      cursor: 'not-allowed',
+    },
+    mergeGroupList: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+    },
+    mergeGroupItem: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '10px',
+      padding: '8px 10px',
+      borderRadius: '8px',
+      border: '1px solid #e2e8f0',
+      backgroundColor: '#ffffff',
+      fontSize: '13px',
+      color: '#475569',
+    },
+    mergeGroupText: {
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    removeGroupButton: {
+      flex: '0 0 auto',
+      width: '26px',
+      height: '26px',
+      borderRadius: '6px',
+      border: '1px solid #fecaca',
+      backgroundColor: '#fff1f2',
+      color: '#b91c1c',
+      fontWeight: 800,
+      cursor: 'pointer',
+      lineHeight: 1,
+    },
+    helperText: {
+      margin: 0,
+      fontSize: '12px',
+      lineHeight: 1.45,
+      color: '#64748b',
+    },
     button: {
       marginTop: isMobile ? '18px' : '24px',
       padding: '12px 20px',
@@ -527,6 +764,16 @@ function App() {
         button:hover:not(:disabled) {
           background-color: #1d4ed8 !important;
         }
+        .subdivision-cell:hover:not(:disabled) {
+          border-color: #2563eb !important;
+          background-color: #eff6ff !important;
+        }
+        .compact-action:hover:not(:disabled) {
+          background-color: #eff6ff !important;
+        }
+        .remove-merge-group:hover:not(:disabled) {
+          background-color: #fee2e2 !important;
+        }
         .generator-tab:hover:not(:disabled) {
           background-color: #ffffff !important;
         }
@@ -613,6 +860,93 @@ function App() {
                         />
                       </div>
                     ))}
+                    <div style={styles.mergePanel}>
+                      <label style={styles.label}>Merge Subdivisions</label>
+                      <div
+                        style={styles.divisionGrid}
+                        role="grid"
+                        aria-label="Subdivision merge grid"
+                      >
+                        {Array.from({ length: divisionRows }).map((_, row) => (
+                          Array.from({ length: divisionColumns }).map((__, column) => {
+                            const cellKey = getCellKey(row, column);
+                            const groupIndex = groupedCellMap.get(cellKey);
+                            const isMerged = groupIndex !== undefined;
+                            const isSelected = selectedCellSet.has(cellKey);
+                            const isEditingGroupCell = isMerged && groupIndex === editingJoinedGroupIndex;
+                            const groupColor = isMerged
+                              ? mergeGroupColors[groupIndex % mergeGroupColors.length]
+                              : undefined;
+
+                            return (
+                              <button
+                                key={cellKey}
+                                type="button"
+                                className="subdivision-cell"
+                                onClick={() => toggleDivisionCell(row, column)}
+                                title={isMerged ? `Edit merged group ${groupIndex + 1}` : `Row ${row + 1}, column ${column + 1}`}
+                                style={{
+                                  ...styles.divisionCell,
+                                  ...(isSelected ? styles.divisionCellSelected : {}),
+                                  ...(isMerged ? { ...styles.divisionCellMerged, backgroundColor: groupColor } : {}),
+                                  ...(isEditingGroupCell ? styles.divisionCellEditing : {}),
+                                }}
+                              >
+                                {row + 1}.{column + 1}
+                              </button>
+                            );
+                          })
+                        ))}
+                      </div>
+                      <div style={styles.mergeActions}>
+                        <button
+                          type="button"
+                          className="compact-action"
+                          onClick={mergeSelectedDivisionCells}
+                          disabled={selectedDivisionCells.length < 2}
+                          style={{
+                            ...styles.compactButton,
+                            ...(selectedDivisionCells.length < 2 ? styles.compactButtonDisabled : {}),
+                          }}
+                        >
+                          {editingJoinedGroupIndex === null ? 'Merge Selected' : 'Save Merge'}
+                        </button>
+                        <button
+                          type="button"
+                          className="compact-action"
+                          onClick={selectedDivisionCells.length ? clearDivisionSelection : clearJoinedDivisionGroups}
+                          disabled={!selectedDivisionCells.length && !joinedDivisionGroups.length}
+                          style={{
+                            ...styles.compactButton,
+                            ...(!selectedDivisionCells.length && !joinedDivisionGroups.length ? styles.compactButtonDisabled : {}),
+                          }}
+                        >
+                          {selectedDivisionCells.length ? 'Clear Selection' : 'Clear Merges'}
+                        </button>
+                      </div>
+                      {joinedDivisionGroups.length > 0 ? (
+                        <div style={styles.mergeGroupList}>
+                          {joinedDivisionGroups.map((group, groupIndex) => (
+                            <div key={`${groupIndex}-${group.map((cell) => getCellKey(cell.row, cell.column)).join('-')}`} style={styles.mergeGroupItem}>
+                              <span style={styles.mergeGroupText}>
+                                Group {groupIndex + 1}: {group.map((cell) => `${cell.row + 1}.${cell.column + 1}`).join(', ')}
+                              </span>
+                              <button
+                                type="button"
+                                className="remove-merge-group"
+                                onClick={() => removeJoinedDivisionGroup(groupIndex)}
+                                style={styles.removeGroupButton}
+                                aria-label={`Remove merged group ${groupIndex + 1}`}
+                              >
+                                x
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={styles.helperText}>Click adjacent cells, then merge them to remove the divider walls between those subdivisions.</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
