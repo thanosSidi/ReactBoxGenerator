@@ -48,17 +48,18 @@ const topRampPatternOptions = [
 
 const mergeGroupColors = ['#f97316', '#14b8a6', '#8b5cf6', '#22c55e', '#ef4444', '#0ea5e9'];
 
-function parseDimensionList(value) {
-  if (!value.trim()) return [];
-
-  const parts = value.split(',').map((part) => part.trim());
-  if (parts.some((part) => part === '')) return [];
-
-  return parts.map((part) => Number(part));
+function parseDimensionValues(values) {
+  return values.map((value) => Number(value));
 }
 
 function dimensionsTotal(values) {
   return values.reduce((sum, value) => sum + value, 0);
+}
+
+function createEqualDimensions(total, count) {
+  const safeCount = Math.max(1, count);
+  const size = total / safeCount;
+  return Array.from({ length: safeCount }, () => Number(size.toFixed(3)));
 }
 
 function getCellKey(row, column) {
@@ -208,8 +209,8 @@ function App() {
   const [joinedDivisionGroups, setJoinedDivisionGroups] = useState([]);
   const [editingJoinedGroupIndex, setEditingJoinedGroupIndex] = useState(null);
   const [customSubdivisionSizingEnabled, setCustomSubdivisionSizingEnabled] = useState(false);
-  const [customColumnWidthsInput, setCustomColumnWidthsInput] = useState('60,20');
-  const [customRowLengthsInput, setCustomRowLengthsInput] = useState('60,20');
+  const [customColumnWidths, setCustomColumnWidths] = useState([60, 20]);
+  const [customRowLengths, setCustomRowLengths] = useState([60, 20]);
   const controlsRef = useRef();
   const viewerRef = useRef(null);
   const isMobile = useMediaQuery('(max-width: 760px)');
@@ -256,13 +257,40 @@ function App() {
     setBoxFormData({ ...boxFormData, [name]: value });
   };
 
+  const updateDimensionValue = (dimensionType, index, value) => {
+    const setter = dimensionType === 'column' ? setCustomColumnWidths : setCustomRowLengths;
+    setter((dimensions) => dimensions.map((dimension, dimensionIndex) => (
+      dimensionIndex === index ? value : dimension
+    )));
+  };
+
+  const addDimensionValue = (dimensionType) => {
+    const total = dimensionType === 'column' ? boxFormData.total_width_mm : boxFormData.total_length_mm;
+    const setter = dimensionType === 'column' ? setCustomColumnWidths : setCustomRowLengths;
+    setter((dimensions) => createEqualDimensions(total, dimensions.length + 1));
+  };
+
+  const removeDimensionValue = (dimensionType, index) => {
+    const setter = dimensionType === 'column' ? setCustomColumnWidths : setCustomRowLengths;
+    setter((dimensions) => {
+      if (dimensions.length <= 1) return dimensions;
+      return dimensions.filter((_, dimensionIndex) => dimensionIndex !== index);
+    });
+  };
+
+  const equalizeDimensionValues = (dimensionType) => {
+    const total = dimensionType === 'column' ? boxFormData.total_width_mm : boxFormData.total_length_mm;
+    const setter = dimensionType === 'column' ? setCustomColumnWidths : setCustomRowLengths;
+    setter((dimensions) => createEqualDimensions(total, dimensions.length));
+  };
+
   const parsedCustomColumnWidths = useMemo(() => (
-    parseDimensionList(customColumnWidthsInput)
-  ), [customColumnWidthsInput]);
+    parseDimensionValues(customColumnWidths)
+  ), [customColumnWidths]);
 
   const parsedCustomRowLengths = useMemo(() => (
-    parseDimensionList(customRowLengthsInput)
-  ), [customRowLengthsInput]);
+    parseDimensionValues(customRowLengths)
+  ), [customRowLengths]);
 
   const customColumnWidthsValid = (
     !customSubdivisionSizingEnabled ||
@@ -283,6 +311,8 @@ function App() {
   );
 
   const customSubdivisionSizesValid = customColumnWidthsValid && customRowLengthsValid;
+  const customColumnWidthsTotal = dimensionsTotal(parsedCustomColumnWidths);
+  const customRowLengthsTotal = dimensionsTotal(parsedCustomRowLengths);
   const divisionRows = customSubdivisionSizingEnabled && parsedCustomRowLengths.length
     ? parsedCustomRowLengths.length
     : Math.max(1, Math.floor(boxFormData.row_subdivisions || 1));
@@ -747,6 +777,65 @@ function App() {
       lineHeight: 1.45,
       color: '#b91c1c',
     },
+    dimensionEditor: {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr)',
+      gap: '12px',
+      minWidth: 0,
+    },
+    dimensionList: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      padding: '10px',
+      borderRadius: '8px',
+      border: '1px solid #e2e8f0',
+      backgroundColor: '#ffffff',
+      minWidth: 0,
+    },
+    dimensionHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '8px',
+    },
+    dimensionTitle: {
+      margin: 0,
+      fontSize: '13px',
+      fontWeight: 700,
+      color: '#334155',
+    },
+    dimensionTotal: {
+      margin: 0,
+      fontSize: '12px',
+      fontVariantNumeric: 'tabular-nums',
+      color: '#64748b',
+    },
+    dimensionTotalInvalid: {
+      color: '#b91c1c',
+      fontWeight: 650,
+    },
+    dimensionRow: {
+      display: 'grid',
+      gridTemplateColumns: '24px minmax(0, 1fr) 30px',
+      alignItems: 'center',
+      gap: '8px',
+      minWidth: 0,
+    },
+    dimensionIndex: {
+      fontSize: '12px',
+      fontWeight: 700,
+      color: '#64748b',
+      textAlign: 'right',
+    },
+    dimensionActions: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '8px',
+    },
+    dimensionSummary: {
+      minWidth: 0,
+    },
     button: {
       marginTop: isMobile ? '14px' : '24px',
       padding: '12px 20px',
@@ -959,37 +1048,129 @@ function App() {
                       </label>
 
                       {customSubdivisionSizingEnabled && (
-                        <div style={styles.nestedGrid}>
-                          <div style={styles.formField}>
-                            <label style={styles.label}>Column Widths (mm)</label>
-                            <input
-                              type="text"
-                              value={customColumnWidthsInput}
-                              onChange={(e) => setCustomColumnWidthsInput(e.target.value)}
-                              placeholder="60,20"
-                              style={styles.input}
-                            />
-                          </div>
-                          <div style={styles.formField}>
-                            <label style={styles.label}>Row Lengths (mm)</label>
-                            <input
-                              type="text"
-                              value={customRowLengthsInput}
-                              onChange={(e) => setCustomRowLengthsInput(e.target.value)}
-                              placeholder="60,20"
-                              style={styles.input}
-                            />
-                          </div>
-                          <div style={styles.fullWidthField}>
-                            {customSubdivisionSizesValid ? (
-                              <p style={styles.helperText}>
-                                Grid: {divisionColumns} columns x {divisionRows} rows.
+                        <div style={styles.dimensionEditor}>
+                          <div style={styles.dimensionList}>
+                            <div style={styles.dimensionHeader}>
+                              <p style={styles.dimensionTitle}>Columns</p>
+                              <p
+                                style={{
+                                  ...styles.dimensionTotal,
+                                  ...(!customColumnWidthsValid ? styles.dimensionTotalInvalid : {}),
+                                }}
+                              >
+                                {customColumnWidthsTotal.toFixed(1)} / {boxFormData.total_width_mm} mm
                               </p>
-                            ) : (
-                              <p style={styles.errorText}>
-                                Widths must total {boxFormData.total_width_mm} mm and lengths must total {boxFormData.total_length_mm} mm.
+                            </div>
+                            {customColumnWidths.map((width, index) => (
+                              <div key={`column-${index}`} style={styles.dimensionRow}>
+                                <span style={styles.dimensionIndex}>{index + 1}</span>
+                                <input
+                                  type="number"
+                                  value={width}
+                                  onChange={(e) => updateDimensionValue('column', index, e.target.value)}
+                                  step={0.1}
+                                  min={0}
+                                  style={{ ...styles.input, minWidth: 0 }}
+                                  aria-label={`Column ${index + 1} width`}
+                                />
+                                <button
+                                  type="button"
+                                  className="remove-merge-group"
+                                  onClick={() => removeDimensionValue('column', index)}
+                                  disabled={customColumnWidths.length <= 1}
+                                  style={{
+                                    ...styles.removeGroupButton,
+                                    ...(customColumnWidths.length <= 1 ? styles.compactButtonDisabled : {}),
+                                  }}
+                                  aria-label={`Remove column ${index + 1}`}
+                                >
+                                  x
+                                </button>
+                              </div>
+                            ))}
+                            <div style={styles.dimensionActions}>
+                              <button
+                                type="button"
+                                className="compact-action"
+                                onClick={() => addDimensionValue('column')}
+                                style={styles.compactButton}
+                              >
+                                Add
+                              </button>
+                              <button
+                                type="button"
+                                className="compact-action"
+                                onClick={() => equalizeDimensionValues('column')}
+                                style={styles.compactButton}
+                              >
+                                Equalize
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={styles.dimensionList}>
+                            <div style={styles.dimensionHeader}>
+                              <p style={styles.dimensionTitle}>Rows</p>
+                              <p
+                                style={{
+                                  ...styles.dimensionTotal,
+                                  ...(!customRowLengthsValid ? styles.dimensionTotalInvalid : {}),
+                                }}
+                              >
+                                {customRowLengthsTotal.toFixed(1)} / {boxFormData.total_length_mm} mm
                               </p>
-                            )}
+                            </div>
+                            {customRowLengths.map((length, index) => (
+                              <div key={`row-${index}`} style={styles.dimensionRow}>
+                                <span style={styles.dimensionIndex}>{index + 1}</span>
+                                <input
+                                  type="number"
+                                  value={length}
+                                  onChange={(e) => updateDimensionValue('row', index, e.target.value)}
+                                  step={0.1}
+                                  min={0}
+                                  style={{ ...styles.input, minWidth: 0 }}
+                                  aria-label={`Row ${index + 1} length`}
+                                />
+                                <button
+                                  type="button"
+                                  className="remove-merge-group"
+                                  onClick={() => removeDimensionValue('row', index)}
+                                  disabled={customRowLengths.length <= 1}
+                                  style={{
+                                    ...styles.removeGroupButton,
+                                    ...(customRowLengths.length <= 1 ? styles.compactButtonDisabled : {}),
+                                  }}
+                                  aria-label={`Remove row ${index + 1}`}
+                                >
+                                  x
+                                </button>
+                              </div>
+                            ))}
+                            <div style={styles.dimensionActions}>
+                              <button
+                                type="button"
+                                className="compact-action"
+                                onClick={() => addDimensionValue('row')}
+                                style={styles.compactButton}
+                              >
+                                Add
+                              </button>
+                              <button
+                                type="button"
+                                className="compact-action"
+                                onClick={() => equalizeDimensionValues('row')}
+                                style={styles.compactButton}
+                              >
+                                Equalize
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={styles.dimensionSummary}>
+                            <p style={customSubdivisionSizesValid ? styles.helperText : styles.errorText}>
+                              Grid: {divisionColumns} columns x {divisionRows} rows.
+                            </p>
                           </div>
                         </div>
                       )}
@@ -1026,9 +1207,7 @@ function App() {
                                   ...(isEditingGroupCell ? styles.divisionCellEditing : {}),
                                 }}
                               >
-                                {customSubdivisionSizingEnabled && customSubdivisionSizesValid
-                                  ? `${parsedCustomColumnWidths[column]}x${parsedCustomRowLengths[row]}`
-                                  : `${row + 1}.${column + 1}`}
+                                {row + 1}.{column + 1}
                               </button>
                             );
                           })
