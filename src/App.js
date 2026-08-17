@@ -48,6 +48,19 @@ const topRampPatternOptions = [
 
 const mergeGroupColors = ['#f97316', '#14b8a6', '#8b5cf6', '#22c55e', '#ef4444', '#0ea5e9'];
 
+function parseDimensionList(value) {
+  if (!value.trim()) return [];
+
+  const parts = value.split(',').map((part) => part.trim());
+  if (parts.some((part) => part === '')) return [];
+
+  return parts.map((part) => Number(part));
+}
+
+function dimensionsTotal(values) {
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
 function getCellKey(row, column) {
   return `${row}:${column}`;
 }
@@ -194,6 +207,9 @@ function App() {
   const [selectedDivisionCells, setSelectedDivisionCells] = useState([]);
   const [joinedDivisionGroups, setJoinedDivisionGroups] = useState([]);
   const [editingJoinedGroupIndex, setEditingJoinedGroupIndex] = useState(null);
+  const [customSubdivisionSizingEnabled, setCustomSubdivisionSizingEnabled] = useState(false);
+  const [customColumnWidthsInput, setCustomColumnWidthsInput] = useState('60,20');
+  const [customRowLengthsInput, setCustomRowLengthsInput] = useState('60,20');
   const controlsRef = useRef();
   const viewerRef = useRef(null);
   const isMobile = useMediaQuery('(max-width: 760px)');
@@ -240,8 +256,39 @@ function App() {
     setBoxFormData({ ...boxFormData, [name]: value });
   };
 
-  const divisionRows = Math.max(1, Math.floor(boxFormData.row_subdivisions || 1));
-  const divisionColumns = Math.max(1, Math.floor(boxFormData.column_subdivisions || 1));
+  const parsedCustomColumnWidths = useMemo(() => (
+    parseDimensionList(customColumnWidthsInput)
+  ), [customColumnWidthsInput]);
+
+  const parsedCustomRowLengths = useMemo(() => (
+    parseDimensionList(customRowLengthsInput)
+  ), [customRowLengthsInput]);
+
+  const customColumnWidthsValid = (
+    !customSubdivisionSizingEnabled ||
+    (
+      parsedCustomColumnWidths.length > 0 &&
+      parsedCustomColumnWidths.every((value) => value > 0) &&
+      Math.abs(dimensionsTotal(parsedCustomColumnWidths) - boxFormData.total_width_mm) < 0.001
+    )
+  );
+
+  const customRowLengthsValid = (
+    !customSubdivisionSizingEnabled ||
+    (
+      parsedCustomRowLengths.length > 0 &&
+      parsedCustomRowLengths.every((value) => value > 0) &&
+      Math.abs(dimensionsTotal(parsedCustomRowLengths) - boxFormData.total_length_mm) < 0.001
+    )
+  );
+
+  const customSubdivisionSizesValid = customColumnWidthsValid && customRowLengthsValid;
+  const divisionRows = customSubdivisionSizingEnabled && parsedCustomRowLengths.length
+    ? parsedCustomRowLengths.length
+    : Math.max(1, Math.floor(boxFormData.row_subdivisions || 1));
+  const divisionColumns = customSubdivisionSizingEnabled && parsedCustomColumnWidths.length
+    ? parsedCustomColumnWidths.length
+    : Math.max(1, Math.floor(boxFormData.column_subdivisions || 1));
 
   const groupedCellMap = useMemo(() => {
     const nextMap = new Map();
@@ -347,6 +394,11 @@ function App() {
     const endpoint = isBoxGenerator ? '/box_generate' : '/generate-baseplate';
     const topRampPattern = topRampPatternEnabled ? boxFormData.top_ramp_pattern : 'none';
 
+    if (isBoxGenerator && subdivisionEnabled && customSubdivisionSizingEnabled && !customSubdivisionSizesValid) {
+      alert('Custom subdivision widths and lengths must be positive comma-separated numbers that add up to the total box width and length.');
+      return;
+    }
+
     if (
       isBoxGenerator &&
       subdivisionEnabled &&
@@ -372,11 +424,17 @@ function App() {
             row_subdivisions: boxFormData.row_subdivisions,
             column_subdivisions: boxFormData.column_subdivisions,
             inner_wall_height_difference: boxFormData.inner_wall_height_difference,
-            ...(joinedDivisionGroups.length
+            ...(customSubdivisionSizingEnabled || joinedDivisionGroups.length
               ? {
                   custom_divisions: {
                     rows: divisionRows,
                     columns: divisionColumns,
+                    ...(customSubdivisionSizingEnabled
+                          ? {
+                          row_lengths: [...parsedCustomRowLengths].reverse(),
+                          column_widths: parsedCustomColumnWidths,
+                        }
+                      : {}),
                     joined_cells: joinedDivisionPayloadGroups,
                   },
                 }
@@ -683,6 +741,12 @@ function App() {
       lineHeight: 1.45,
       color: '#64748b',
     },
+    errorText: {
+      margin: 0,
+      fontSize: '12px',
+      lineHeight: 1.45,
+      color: '#b91c1c',
+    },
     button: {
       marginTop: isMobile ? '14px' : '24px',
       padding: '12px 20px',
@@ -884,6 +948,53 @@ function App() {
                       </div>
                     ))}
                     <div style={styles.mergePanel}>
+                      <label style={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={customSubdivisionSizingEnabled}
+                          onChange={(e) => setCustomSubdivisionSizingEnabled(e.target.checked)}
+                          style={styles.checkbox}
+                        />
+                        Custom Subdivision Sizes
+                      </label>
+
+                      {customSubdivisionSizingEnabled && (
+                        <div style={styles.nestedGrid}>
+                          <div style={styles.formField}>
+                            <label style={styles.label}>Column Widths (mm)</label>
+                            <input
+                              type="text"
+                              value={customColumnWidthsInput}
+                              onChange={(e) => setCustomColumnWidthsInput(e.target.value)}
+                              placeholder="60,20"
+                              style={styles.input}
+                            />
+                          </div>
+                          <div style={styles.formField}>
+                            <label style={styles.label}>Row Lengths (mm)</label>
+                            <input
+                              type="text"
+                              value={customRowLengthsInput}
+                              onChange={(e) => setCustomRowLengthsInput(e.target.value)}
+                              placeholder="60,20"
+                              style={styles.input}
+                            />
+                          </div>
+                          <div style={styles.fullWidthField}>
+                            {customSubdivisionSizesValid ? (
+                              <p style={styles.helperText}>
+                                Grid: {divisionColumns} columns x {divisionRows} rows.
+                              </p>
+                            ) : (
+                              <p style={styles.errorText}>
+                                Widths must total {boxFormData.total_width_mm} mm and lengths must total {boxFormData.total_length_mm} mm.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div style={styles.mergePanel}>
                       <label style={styles.label}>Merge Subdivisions</label>
                       <div
                         style={styles.divisionGrid}
@@ -915,7 +1026,9 @@ function App() {
                                   ...(isEditingGroupCell ? styles.divisionCellEditing : {}),
                                 }}
                               >
-                                {row + 1}.{column + 1}
+                                {customSubdivisionSizingEnabled && customSubdivisionSizesValid
+                                  ? `${parsedCustomColumnWidths[column]}x${parsedCustomRowLengths[row]}`
+                                  : `${row + 1}.${column + 1}`}
                               </button>
                             );
                           })
