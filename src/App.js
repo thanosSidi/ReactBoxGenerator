@@ -35,8 +35,6 @@ const boxFields = [
 ];
 
 const subdivisionFields = [
-  { name: 'row_subdivisions', label: 'Row Subdivisions', step: 1, min: 1 },
-  { name: 'column_subdivisions', label: 'Column Subdivisions', step: 1, min: 1 },
   { name: 'inner_wall_thickness', label: 'Inner Wall Thickness (mm)' },
   { name: 'inner_wall_height_difference', label: 'Inner Wall Height Difference (mm)' },
 ];
@@ -47,19 +45,73 @@ const topRampPatternOptions = [
 ];
 
 const mergeGroupColors = ['#f97316', '#14b8a6', '#8b5cf6', '#22c55e', '#ef4444', '#0ea5e9'];
+const dimensionSegmentColors = ['#bfdbfe', '#99f6e4', '#fde68a', '#fecdd3', '#ddd6fe', '#bbf7d0'];
+const MIN_SUBDIVISION_SIZE_MM = 1;
+const DIMENSION_STEP_MM = 0.1;
+const DIMENSION_SCALE = 10;
 
 function parseDimensionValues(values) {
   return values.map((value) => Number(value));
 }
 
 function dimensionsTotal(values) {
-  return values.reduce((sum, value) => sum + value, 0);
+  return roundDimension(values.reduce((sum, value) => sum + value, 0));
 }
 
 function createEqualDimensions(total, count) {
   const safeCount = Math.max(1, count);
-  const size = total / safeCount;
-  return Array.from({ length: safeCount }, () => Number(size.toFixed(3)));
+  const totalUnits = Math.round(total * DIMENSION_SCALE);
+  const baseUnits = Math.floor(totalUnits / safeCount);
+  let remainingUnits = totalUnits - (baseUnits * safeCount);
+
+  return Array.from({ length: safeCount }, (_, index) => {
+    const extraUnit = index === safeCount - 1 ? remainingUnits : 0;
+    if (index === safeCount - 1) remainingUnits = 0;
+    return formatDimension((baseUnits + extraUnit) / DIMENSION_SCALE);
+  });
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function roundDimension(value) {
+  return Math.round(value * DIMENSION_SCALE) / DIMENSION_SCALE;
+}
+
+function formatDimension(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return value;
+  return roundDimension(numericValue).toFixed(1);
+}
+
+function fitDimensionsToTotal(values, total) {
+  const safeValues = values.map((value) => Math.max(MIN_SUBDIVISION_SIZE_MM, value));
+  const targetUnits = Math.round(total * DIMENSION_SCALE);
+  const minimumUnits = Math.round(MIN_SUBDIVISION_SIZE_MM * DIMENSION_SCALE);
+  const roundedUnits = safeValues.map((value) => Math.max(minimumUnits, Math.round(value * DIMENSION_SCALE)));
+  const currentUnits = roundedUnits.reduce((sum, value) => sum + value, 0);
+  let difference = targetUnits - currentUnits;
+
+  if (roundedUnits.length && difference !== 0) {
+    const lastIndex = roundedUnits.length - 1;
+    roundedUnits[lastIndex] = Math.max(minimumUnits, roundedUnits[lastIndex] + difference);
+    difference = targetUnits - roundedUnits.reduce((sum, value) => sum + value, 0);
+  }
+
+  if (difference !== 0) {
+    return createEqualDimensions(total, roundedUnits.length);
+  }
+
+  return roundedUnits.map((value) => formatDimension(value / DIMENSION_SCALE));
+}
+
+function getDimensionBoundaries(values) {
+  let runningTotal = 0;
+  return values.slice(0, -1).map((value) => {
+    runningTotal += value;
+    return roundDimension(runningTotal);
+  });
 }
 
 function getCellKey(row, column) {
@@ -208,11 +260,12 @@ function App() {
   const [selectedDivisionCells, setSelectedDivisionCells] = useState([]);
   const [joinedDivisionGroups, setJoinedDivisionGroups] = useState([]);
   const [editingJoinedGroupIndex, setEditingJoinedGroupIndex] = useState(null);
-  const [customSubdivisionSizingEnabled, setCustomSubdivisionSizingEnabled] = useState(false);
+  const customSubdivisionSizingEnabled = true;
   const [customColumnWidths, setCustomColumnWidths] = useState([60, 20]);
   const [customRowLengths, setCustomRowLengths] = useState([60, 20]);
   const controlsRef = useRef();
   const viewerRef = useRef(null);
+  const previousBoxTotalsRef = useRef({ width: 80, length: 80 });
   const isMobile = useMediaQuery('(max-width: 760px)');
   const isNarrowMobile = useMediaQuery('(max-width: 380px)');
   const [baseplateFormData, setBaseplateFormData] = useState({
@@ -264,6 +317,77 @@ function App() {
     )));
   };
 
+  const normalizeDimensionValue = (dimensionType, index) => {
+    const setter = dimensionType === 'column' ? setCustomColumnWidths : setCustomRowLengths;
+    setter((dimensions) => dimensions.map((dimension, dimensionIndex) => {
+      if (dimensionIndex !== index) return dimension;
+
+      const numericValue = Number(dimension);
+      if (!Number.isFinite(numericValue)) return dimension;
+      return formatDimension(numericValue);
+    }));
+  };
+
+  const updateDimensionBoundary = (dimensionType, boundaryIndex, value) => {
+    const setter = dimensionType === 'column' ? setCustomColumnWidths : setCustomRowLengths;
+    setter((dimensions) => {
+      const numericDimensions = parseDimensionValues(dimensions);
+      if (numericDimensions.length < 2 || numericDimensions.some((dimension) => !Number.isFinite(dimension))) {
+        return dimensions;
+      }
+
+      const boundaries = getDimensionBoundaries(numericDimensions);
+      const previousBoundary = boundaryIndex === 0 ? 0 : boundaries[boundaryIndex - 1];
+      const nextBoundary = boundaryIndex === boundaries.length - 1
+        ? dimensionsTotal(numericDimensions)
+        : boundaries[boundaryIndex + 1];
+      const nextValue = clamp(
+        roundDimension(Number(value)),
+        previousBoundary + MIN_SUBDIVISION_SIZE_MM,
+        nextBoundary - MIN_SUBDIVISION_SIZE_MM
+      );
+
+      return numericDimensions.map((dimension, dimensionIndex) => {
+        if (dimensionIndex === boundaryIndex) {
+          return formatDimension(nextValue - previousBoundary);
+        }
+
+        if (dimensionIndex === boundaryIndex + 1) {
+          return formatDimension(nextBoundary - nextValue);
+        }
+
+        return formatDimension(dimension);
+      });
+    });
+  };
+
+  const handleDimensionBoundaryPointerDown = (event, dimensionType, boundaryIndex, totalValue) => {
+    const bar = event.currentTarget.closest('[data-dimension-bar="true"]');
+    if (!bar || !Number.isFinite(totalValue) || totalValue <= 0) return;
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const updateFromPointer = (clientX) => {
+      const rect = bar.getBoundingClientRect();
+      const ratio = rect.width > 0 ? clamp((clientX - rect.left) / rect.width, 0, 1) : 0;
+      updateDimensionBoundary(dimensionType, boundaryIndex, ratio * totalValue);
+    };
+
+    updateFromPointer(event.clientX);
+
+    const handlePointerMove = (moveEvent) => {
+      updateFromPointer(moveEvent.clientX);
+    };
+    const handlePointerUp = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
   const addDimensionValue = (dimensionType) => {
     const total = dimensionType === 'column' ? boxFormData.total_width_mm : boxFormData.total_length_mm;
     const setter = dimensionType === 'column' ? setCustomColumnWidths : setCustomRowLengths;
@@ -292,12 +416,49 @@ function App() {
     parseDimensionValues(customRowLengths)
   ), [customRowLengths]);
 
+  useEffect(() => {
+    const previousTotals = previousBoxTotalsRef.current;
+
+    if (previousTotals.width !== boxFormData.total_width_mm && boxFormData.total_width_mm > 0) {
+      setCustomColumnWidths((dimensions) => {
+        const numericDimensions = parseDimensionValues(dimensions);
+        const currentTotal = dimensionsTotal(numericDimensions);
+        if (!Number.isFinite(currentTotal) || currentTotal <= 0) {
+          return createEqualDimensions(boxFormData.total_width_mm, dimensions.length);
+        }
+        return fitDimensionsToTotal(
+          numericDimensions.map((dimension) => (dimension / currentTotal) * boxFormData.total_width_mm),
+          boxFormData.total_width_mm
+        );
+      });
+    }
+
+    if (previousTotals.length !== boxFormData.total_length_mm && boxFormData.total_length_mm > 0) {
+      setCustomRowLengths((dimensions) => {
+        const numericDimensions = parseDimensionValues(dimensions);
+        const currentTotal = dimensionsTotal(numericDimensions);
+        if (!Number.isFinite(currentTotal) || currentTotal <= 0) {
+          return createEqualDimensions(boxFormData.total_length_mm, dimensions.length);
+        }
+        return fitDimensionsToTotal(
+          numericDimensions.map((dimension) => (dimension / currentTotal) * boxFormData.total_length_mm),
+          boxFormData.total_length_mm
+        );
+      });
+    }
+
+    previousBoxTotalsRef.current = {
+      width: boxFormData.total_width_mm,
+      length: boxFormData.total_length_mm,
+    };
+  }, [boxFormData.total_width_mm, boxFormData.total_length_mm]);
+
   const customColumnWidthsValid = (
     !customSubdivisionSizingEnabled ||
     (
       parsedCustomColumnWidths.length > 0 &&
       parsedCustomColumnWidths.every((value) => value > 0) &&
-      Math.abs(dimensionsTotal(parsedCustomColumnWidths) - boxFormData.total_width_mm) < 0.001
+      Math.abs(dimensionsTotal(parsedCustomColumnWidths) - roundDimension(boxFormData.total_width_mm)) < 0.001
     )
   );
 
@@ -306,7 +467,7 @@ function App() {
     (
       parsedCustomRowLengths.length > 0 &&
       parsedCustomRowLengths.every((value) => value > 0) &&
-      Math.abs(dimensionsTotal(parsedCustomRowLengths) - boxFormData.total_length_mm) < 0.001
+      Math.abs(dimensionsTotal(parsedCustomRowLengths) - roundDimension(boxFormData.total_length_mm)) < 0.001
     )
   );
 
@@ -541,11 +702,11 @@ function App() {
       color: '#1e293b',
     },
     sidebar: {
-      width: isMobile ? 'auto' : '420px',
+      width: isMobile ? 'auto' : '520px',
       order: isMobile && stlUrl ? 2 : 1,
       maxHeight: isMobile ? 'none' : '100vh',
       boxSizing: 'border-box',
-      padding: isMobile ? '16px 12px calc(18px + env(safe-area-inset-bottom))' : '32px',
+      padding: isMobile ? '16px 12px calc(18px + env(safe-area-inset-bottom))' : '28px',
       overflowY: isMobile ? 'visible' : 'auto',
       backgroundColor: '#ffffff',
       borderRight: isMobile ? 'none' : '1px solid #e2e8f0',
@@ -786,8 +947,8 @@ function App() {
     dimensionList: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
-      padding: '10px',
+      gap: '10px',
+      padding: isMobile ? '10px' : '12px',
       borderRadius: '8px',
       border: '1px solid #e2e8f0',
       backgroundColor: '#ffffff',
@@ -815,6 +976,71 @@ function App() {
       color: '#b91c1c',
       fontWeight: 650,
     },
+    dimensionBarShell: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      minWidth: 0,
+    },
+    dimensionBar: {
+      position: 'relative',
+      display: 'flex',
+      height: isMobile ? '48px' : '44px',
+      minWidth: 0,
+      border: '1px solid #94a3b8',
+      borderRadius: '6px',
+      backgroundColor: '#f8fafc',
+      overflow: 'hidden',
+      touchAction: 'none',
+    },
+    dimensionSegment: {
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: '28px',
+      borderRight: '1px solid rgba(15, 23, 42, 0.18)',
+      color: '#0f172a',
+      fontSize: isMobile ? '11px' : '12px',
+      fontWeight: 750,
+      fontVariantNumeric: 'tabular-nums',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    },
+    dimensionSliderLayer: {
+      position: 'relative',
+      height: '28px',
+      minWidth: 0,
+    },
+    dimensionBoundaryHandle: {
+      position: 'absolute',
+      top: '50%',
+      width: isMobile ? '22px' : '18px',
+      height: isMobile ? '42px' : '38px',
+      margin: 0,
+      padding: 0,
+      border: '2px solid #1d4ed8',
+      borderRadius: '999px',
+      backgroundColor: '#ffffff',
+      boxShadow: '0 1px 4px rgb(15 23 42 / 0.28)',
+      cursor: 'ew-resize',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 3,
+      touchAction: 'none',
+    },
+    dimensionInputs: {
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(110px, 1fr))',
+      gap: '8px',
+    },
+    dimensionInputGroup: {
+      display: 'grid',
+      gridTemplateColumns: '24px minmax(0, 1fr)',
+      alignItems: 'center',
+      gap: '6px',
+      minWidth: 0,
+    },
     dimensionRow: {
       display: 'grid',
       gridTemplateColumns: '24px minmax(0, 1fr) 30px',
@@ -830,7 +1056,7 @@ function App() {
     },
     dimensionActions: {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
+      gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
       gap: '8px',
     },
     dimensionSummary: {
@@ -868,8 +1094,8 @@ function App() {
     canvasContainer: {
       flex: '0 0 auto',
       order: isMobile && stlUrl ? 1 : 2,
-      width: isMobile ? '100%' : 'min(calc(100vw - 420px), 100vh)',
-      maxWidth: isMobile ? '100%' : 'calc(100vw - 420px)',
+      width: isMobile ? '100%' : 'min(calc(100vw - 520px), 100vh)',
+      maxWidth: isMobile ? '100%' : 'calc(100vw - 520px)',
       aspectRatio: '1 / 1',
       backgroundColor: '#f1f5f9',
       position: 'relative',
@@ -924,6 +1150,143 @@ function App() {
     }
   };
 
+  const renderDimensionBar = ({
+    type,
+    title,
+    total,
+    values,
+    parsedValues,
+    totalValue,
+    isValid,
+    unitLabel,
+  }) => {
+    const canDragBoundaries = parsedValues.length > 1 && parsedValues.every((value) => (
+      Number.isFinite(value) && value >= MIN_SUBDIVISION_SIZE_MM
+    ));
+    const boundaries = canDragBoundaries ? getDimensionBoundaries(parsedValues) : [];
+    const safeTotal = Number.isFinite(totalValue) && totalValue > 0
+      ? totalValue
+      : MIN_SUBDIVISION_SIZE_MM;
+    const formattedTotal = Number.isFinite(totalValue) ? totalValue.toFixed(1) : '0.0';
+
+    return (
+      <div style={styles.dimensionList}>
+        <div style={styles.dimensionHeader}>
+          <p style={styles.dimensionTitle}>{title}</p>
+          <p
+            style={{
+              ...styles.dimensionTotal,
+              ...(!isValid ? styles.dimensionTotalInvalid : {}),
+            }}
+          >
+            {formattedTotal} / {total} mm
+          </p>
+        </div>
+
+        <div style={styles.dimensionBarShell}>
+          <div
+            style={styles.dimensionBar}
+            aria-label={`${title} proportional size bar`}
+            data-dimension-bar="true"
+          >
+            {parsedValues.map((value, index) => {
+              const numericValue = Number.isFinite(value) ? value : 0;
+              const segmentWidth = `${Math.max((numericValue / safeTotal) * 100, 0)}%`;
+              return (
+                <div
+                  key={`${type}-segment-${index}`}
+                  style={{
+                    ...styles.dimensionSegment,
+                    width: segmentWidth,
+                    backgroundColor: dimensionSegmentColors[index % dimensionSegmentColors.length],
+                    ...(index === parsedValues.length - 1 ? { borderRight: 'none' } : {}),
+                  }}
+                  title={`${unitLabel} ${index + 1}: ${Number.isFinite(value) ? value.toFixed(1) : 0} mm`}
+                >
+                  {index + 1}
+                </div>
+              );
+            })}
+
+            {boundaries.map((boundary, index) => (
+              <button
+                key={`${type}-boundary-${index}`}
+                type="button"
+                className="dimension-boundary-handle"
+                onPointerDown={(e) => handleDimensionBoundaryPointerDown(e, type, index, totalValue)}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    updateDimensionBoundary(type, index, boundary - DIMENSION_STEP_MM);
+                  }
+                  if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    updateDimensionBoundary(type, index, boundary + DIMENSION_STEP_MM);
+                  }
+                }}
+                style={{
+                  ...styles.dimensionBoundaryHandle,
+                  left: `${(boundary / safeTotal) * 100}%`,
+                }}
+                aria-label={`${title} divider ${index + 1}`}
+                title={`${title} divider ${index + 1}`}
+              />
+            ))}
+          </div>
+
+          <div style={styles.dimensionInputs}>
+            {values.map((value, index) => (
+              <label key={`${type}-input-${index}`} style={styles.dimensionInputGroup}>
+                <span style={styles.dimensionIndex}>{index + 1}</span>
+                <input
+                  type="number"
+                  value={value}
+                  onChange={(e) => updateDimensionValue(type, index, e.target.value)}
+                  onBlur={() => normalizeDimensionValue(type, index)}
+                  step={DIMENSION_STEP_MM}
+                  min={MIN_SUBDIVISION_SIZE_MM}
+                  style={{ ...styles.input, minWidth: 0, padding: isMobile ? '9px 10px' : '8px 10px' }}
+                  aria-label={`${unitLabel} ${index + 1} size`}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div style={styles.dimensionActions}>
+          <button
+            type="button"
+            className="compact-action"
+            onClick={() => addDimensionValue(type)}
+            style={styles.compactButton}
+          >
+            Add {unitLabel}
+          </button>
+          <button
+            type="button"
+            className="compact-action"
+            onClick={() => removeDimensionValue(type, values.length - 1)}
+            disabled={values.length <= 1}
+            style={{
+              ...styles.compactButton,
+              ...(values.length <= 1 ? styles.compactButtonDisabled : {}),
+            }}
+          >
+            Remove {unitLabel}
+          </button>
+          <button
+            type="button"
+            className="compact-action"
+            onClick={() => equalizeDimensionValues(type)}
+            style={styles.compactButton}
+          >
+            Equalize
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={styles.container}>
       <style>{`
@@ -949,6 +1312,12 @@ function App() {
         }
         .remove-merge-group:hover:not(:disabled) {
           background-color: #fee2e2 !important;
+        }
+        .dimension-boundary-handle:hover,
+        .dimension-boundary-handle:focus {
+          background-color: #ffffff !important;
+          border-color: #1e40af !important;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22), 0 1px 4px rgb(15 23 42 / 0.28) !important;
         }
         .generator-tab:hover:not(:disabled) {
           background-color: #ffffff !important;
@@ -1037,143 +1406,36 @@ function App() {
                       </div>
                     ))}
                     <div style={styles.mergePanel}>
-                      <label style={styles.checkboxLabel}>
-                        <input
-                          type="checkbox"
-                          checked={customSubdivisionSizingEnabled}
-                          onChange={(e) => setCustomSubdivisionSizingEnabled(e.target.checked)}
-                          style={styles.checkbox}
-                        />
-                        Custom Subdivision Sizes
-                      </label>
+                      <label style={styles.label}>Subdivision Layout</label>
+                      <div style={styles.dimensionEditor}>
+                        {renderDimensionBar({
+                          type: 'column',
+                          title: 'Columns',
+                          total: boxFormData.total_width_mm,
+                          values: customColumnWidths,
+                          parsedValues: parsedCustomColumnWidths,
+                          totalValue: customColumnWidthsTotal,
+                          isValid: customColumnWidthsValid,
+                          unitLabel: 'Column',
+                        })}
 
-                      {customSubdivisionSizingEnabled && (
-                        <div style={styles.dimensionEditor}>
-                          <div style={styles.dimensionList}>
-                            <div style={styles.dimensionHeader}>
-                              <p style={styles.dimensionTitle}>Columns</p>
-                              <p
-                                style={{
-                                  ...styles.dimensionTotal,
-                                  ...(!customColumnWidthsValid ? styles.dimensionTotalInvalid : {}),
-                                }}
-                              >
-                                {customColumnWidthsTotal.toFixed(1)} / {boxFormData.total_width_mm} mm
-                              </p>
-                            </div>
-                            {customColumnWidths.map((width, index) => (
-                              <div key={`column-${index}`} style={styles.dimensionRow}>
-                                <span style={styles.dimensionIndex}>{index + 1}</span>
-                                <input
-                                  type="number"
-                                  value={width}
-                                  onChange={(e) => updateDimensionValue('column', index, e.target.value)}
-                                  step={0.1}
-                                  min={0}
-                                  style={{ ...styles.input, minWidth: 0 }}
-                                  aria-label={`Column ${index + 1} width`}
-                                />
-                                <button
-                                  type="button"
-                                  className="remove-merge-group"
-                                  onClick={() => removeDimensionValue('column', index)}
-                                  disabled={customColumnWidths.length <= 1}
-                                  style={{
-                                    ...styles.removeGroupButton,
-                                    ...(customColumnWidths.length <= 1 ? styles.compactButtonDisabled : {}),
-                                  }}
-                                  aria-label={`Remove column ${index + 1}`}
-                                >
-                                  x
-                                </button>
-                              </div>
-                            ))}
-                            <div style={styles.dimensionActions}>
-                              <button
-                                type="button"
-                                className="compact-action"
-                                onClick={() => addDimensionValue('column')}
-                                style={styles.compactButton}
-                              >
-                                Add
-                              </button>
-                              <button
-                                type="button"
-                                className="compact-action"
-                                onClick={() => equalizeDimensionValues('column')}
-                                style={styles.compactButton}
-                              >
-                                Equalize
-                              </button>
-                            </div>
-                          </div>
+                        {renderDimensionBar({
+                          type: 'row',
+                          title: 'Rows',
+                          total: boxFormData.total_length_mm,
+                          values: customRowLengths,
+                          parsedValues: parsedCustomRowLengths,
+                          totalValue: customRowLengthsTotal,
+                          isValid: customRowLengthsValid,
+                          unitLabel: 'Row',
+                        })}
 
-                          <div style={styles.dimensionList}>
-                            <div style={styles.dimensionHeader}>
-                              <p style={styles.dimensionTitle}>Rows</p>
-                              <p
-                                style={{
-                                  ...styles.dimensionTotal,
-                                  ...(!customRowLengthsValid ? styles.dimensionTotalInvalid : {}),
-                                }}
-                              >
-                                {customRowLengthsTotal.toFixed(1)} / {boxFormData.total_length_mm} mm
-                              </p>
-                            </div>
-                            {customRowLengths.map((length, index) => (
-                              <div key={`row-${index}`} style={styles.dimensionRow}>
-                                <span style={styles.dimensionIndex}>{index + 1}</span>
-                                <input
-                                  type="number"
-                                  value={length}
-                                  onChange={(e) => updateDimensionValue('row', index, e.target.value)}
-                                  step={0.1}
-                                  min={0}
-                                  style={{ ...styles.input, minWidth: 0 }}
-                                  aria-label={`Row ${index + 1} length`}
-                                />
-                                <button
-                                  type="button"
-                                  className="remove-merge-group"
-                                  onClick={() => removeDimensionValue('row', index)}
-                                  disabled={customRowLengths.length <= 1}
-                                  style={{
-                                    ...styles.removeGroupButton,
-                                    ...(customRowLengths.length <= 1 ? styles.compactButtonDisabled : {}),
-                                  }}
-                                  aria-label={`Remove row ${index + 1}`}
-                                >
-                                  x
-                                </button>
-                              </div>
-                            ))}
-                            <div style={styles.dimensionActions}>
-                              <button
-                                type="button"
-                                className="compact-action"
-                                onClick={() => addDimensionValue('row')}
-                                style={styles.compactButton}
-                              >
-                                Add
-                              </button>
-                              <button
-                                type="button"
-                                className="compact-action"
-                                onClick={() => equalizeDimensionValues('row')}
-                                style={styles.compactButton}
-                              >
-                                Equalize
-                              </button>
-                            </div>
-                          </div>
-
-                          <div style={styles.dimensionSummary}>
-                            <p style={customSubdivisionSizesValid ? styles.helperText : styles.errorText}>
-                              Grid: {divisionColumns} columns x {divisionRows} rows.
-                            </p>
-                          </div>
+                        <div style={styles.dimensionSummary}>
+                          <p style={customSubdivisionSizesValid ? styles.helperText : styles.errorText}>
+                            Grid: {divisionColumns} columns x {divisionRows} rows.
+                          </p>
                         </div>
-                      )}
+                      </div>
                     </div>
                     <div style={styles.mergePanel}>
                       <label style={styles.label}>Merge Subdivisions</label>
