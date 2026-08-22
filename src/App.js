@@ -118,6 +118,14 @@ function getCellKey(row, column) {
   return `${row}:${column}`;
 }
 
+function createProportionalTracks(values, count) {
+  const safeCount = Math.max(1, count);
+  return Array.from({ length: safeCount }, (_, index) => {
+    const value = Number(values[index]);
+    return `${Number.isFinite(value) && value > 0 ? value : 1}fr`;
+  }).join(' ');
+}
+
 function areCellsConnected(cells) {
   if (cells.length <= 1) return false;
 
@@ -480,6 +488,9 @@ function App() {
   const divisionColumns = customSubdivisionSizingEnabled && parsedCustomColumnWidths.length
     ? parsedCustomColumnWidths.length
     : Math.max(1, Math.floor(boxFormData.column_subdivisions || 1));
+  const divisionColumnTracks = createProportionalTracks(parsedCustomColumnWidths, divisionColumns);
+  const divisionRowTracks = createProportionalTracks(parsedCustomRowLengths, divisionRows);
+  const divisionGridAspectRatio = `${Math.max(boxFormData.total_width_mm, 1)} / ${Math.max(boxFormData.total_length_mm, 1)}`;
 
   const groupedCellMap = useMemo(() => {
     const nextMap = new Map();
@@ -835,19 +846,25 @@ function App() {
     },
     divisionGrid: {
       display: 'grid',
-      gridTemplateColumns: `repeat(${divisionColumns}, minmax(${isMobile ? '42px' : '26px'}, 1fr))`,
+      gridTemplateColumns: divisionColumnTracks,
+      gridTemplateRows: divisionRowTracks,
       gap: isMobile ? '6px' : '5px',
       padding: isMobile ? '8px' : '10px',
       borderRadius: '8px',
       border: '1px solid #cbd5e1',
       backgroundColor: '#ffffff',
+      aspectRatio: divisionGridAspectRatio,
+      minHeight: isMobile ? '180px' : '160px',
+      maxHeight: isMobile ? '360px' : '420px',
       overflowX: 'auto',
       WebkitOverflowScrolling: 'touch',
     },
     divisionCell: {
-      aspectRatio: '1 / 1',
+      width: '100%',
+      height: '100%',
       minWidth: 0,
-      minHeight: isMobile ? '42px' : '26px',
+      minHeight: 0,
+      padding: isMobile ? '4px' : '3px',
       border: '1px solid #cbd5e1',
       borderRadius: '6px',
       backgroundColor: '#f8fafc',
