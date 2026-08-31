@@ -10,11 +10,12 @@ const TOP_RAMP_MIN_INNER_WALL_HEIGHT_DIFFERENCE = 3.8;
 const generatorTabs = [
   { id: 'baseplate', label: 'Baseplate' },
   { id: 'box', label: 'Box' },
+  { id: 'enclosure', label: 'Enclosure' },
 ];
   
 const baseplateFields = [
-  { name: 'total_width_mm', label: 'Total Width (mm)' },
-  { name: 'total_length_mm', label: 'Total Length (mm)' },
+  { name: 'total_width_mm', label: 'Inner Width (mm)' },
+  { name: 'total_length_mm', label: 'Inner Length (mm)' },
   { name: 'cell_w', label: 'Cell Width (mm)' },
   { name: 'cell_l', label: 'Cell Length (mm)' },
   { name: 'printer_w', label: 'Printer Width (mm)' },
@@ -32,6 +33,28 @@ const boxFields = [
   { name: 'cell_w', label: 'Cell Width (mm)' },
   { name: 'cell_l', label: 'Cell Length (mm)' },
   { name: 'box_base_thickness', label: 'Base Thickness (mm)', fullWidth: true },
+];
+
+const enclosureFields = [
+  { name: 'total_width_mm', label: 'Total Width (mm)' },
+  { name: 'total_length_mm', label: 'Total Length (mm)' },
+  { name: 'cell_w', label: 'Cell Width (mm)' },
+  { name: 'cell_l', label: 'Cell Length (mm)' },
+  { name: 'box_height', label: 'Box Height (mm)' },
+  { name: 'lid_height', label: 'Lid Height (mm)' },
+  { name: 'wall_thickness', label: 'Wall Thickness (mm)' },
+  { name: 'base_thickness', label: 'Floor Thickness (mm)' },
+  { name: 'lid_thickness', label: 'Lid Thickness (mm)' },
+  { name: 'lid_lip_height', label: 'Lid Lip Height (mm)' },
+  { name: 'lid_clearance', label: 'Lid Clearance (mm)' },
+  { name: 'lid_open_angle', label: 'Lid Open Angle (deg)', min: 0 },
+  { name: 'bottom_pattern_height', label: 'Interior Baseplate Height (mm)' },
+  { name: 'cut_corner_radius', label: 'Pattern Corner Radius (mm)' },
+  { name: 'hinge_radius', label: 'Hinge Radius (mm)' },
+  { name: 'hinge_pin_radius', label: 'Hinge Pin Radius (mm)' },
+  { name: 'hinge_barrel_length', label: 'Hinge Barrel Length (mm)' },
+  { name: 'hinge_gap', label: 'Hinge Gap (mm)' },
+  { name: 'hinge_count', label: 'Hinge Count', step: 1, min: 1 },
 ];
 
 const subdivisionFields = [
@@ -301,6 +324,44 @@ function App() {
     box_base_thickness: 5,
     top_ramp_pattern: 'none'
   });
+  const [enclosureFormData, setEnclosureFormData] = useState({
+    total_width_mm: 320,
+    total_length_mm: 80,
+    cell_w: 40,
+    cell_l: 40,
+    box_height: 28,
+    lid_height: 10,
+    wall_thickness: 2,
+    base_thickness: 4,
+    lid_thickness: 2,
+    lid_lip_height: 4,
+    lid_clearance: 0.35,
+    lid_open_angle: 105,
+    bottom_pattern_height: 3.2,
+    cut_corner_radius: 3.0,
+    hinge_radius: 3,
+    hinge_pin_radius: 1.2,
+    hinge_barrel_length: 18,
+    hinge_gap: 1,
+    hinge_count: 5
+  });
+
+  const activeGenerator = generatorTabs.find((tab) => tab.id === activeTab) || generatorTabs[0];
+  const activeDescription = {
+    baseplate: 'configuration baseplate.',
+    box: 'grid-compatible box.',
+    enclosure: 'hinged enclosure.',
+  }[activeTab];
+  const activeFields = {
+    baseplate: baseplateFields,
+    box: boxFields,
+    enclosure: enclosureFields,
+  }[activeTab];
+  const activeFormData = {
+    baseplate: baseplateFormData,
+    box: boxFormData,
+    enclosure: enclosureFormData,
+  }[activeTab];
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -308,8 +369,10 @@ function App() {
 
     if (activeTab === 'baseplate') {
       setBaseplateFormData({ ...baseplateFormData, [name]: parsedValue });
-    } else {
+    } else if (activeTab === 'box') {
       setBoxFormData({ ...boxFormData, [name]: parsedValue });
+    } else {
+      setEnclosureFormData({ ...enclosureFormData, [name]: parsedValue });
     }
   };
 
@@ -592,8 +655,13 @@ function App() {
 
   const generateSTL = async () => {
     const isBoxGenerator = activeTab === 'box';
-    const submittedType = isBoxGenerator ? 'box' : 'baseplate';
-    const endpoint = isBoxGenerator ? '/box_generate' : '/generate-baseplate';
+    const isEnclosureGenerator = activeTab === 'enclosure';
+    const submittedType = activeTab;
+    const endpoint = isBoxGenerator
+      ? '/box_generate'
+      : isEnclosureGenerator
+        ? '/enclosure_generate'
+        : '/generate-baseplate';
     const topRampPattern = topRampPatternEnabled ? boxFormData.top_ramp_pattern : 'none';
 
     if (isBoxGenerator && subdivisionEnabled && customSubdivisionSizingEnabled && !customSubdivisionSizesValid) {
@@ -608,6 +676,30 @@ function App() {
       boxFormData.inner_wall_height_difference < TOP_RAMP_MIN_INNER_WALL_HEIGHT_DIFFERENCE
     ) {
       alert(`Inner Wall Height Difference must be at least ${TOP_RAMP_MIN_INNER_WALL_HEIGHT_DIFFERENCE} mm when Top Ramp Pattern is not None.`);
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      enclosureFormData.hinge_pin_radius >= enclosureFormData.hinge_radius
+    ) {
+      alert('Hinge Pin Radius must be smaller than Hinge Radius.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      enclosureFormData.base_thickness < enclosureFormData.bottom_pattern_height
+    ) {
+      alert('Floor Thickness must be at least the Interior Baseplate Height.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      (enclosureFormData.lid_open_angle < 0 || enclosureFormData.lid_open_angle > 180)
+    ) {
+      alert('Lid Open Angle must be between 0 and 180 degrees.');
       return;
     }
 
@@ -644,7 +736,11 @@ function App() {
           }
         : {}),
     };
-    const payload = isBoxGenerator ? boxPayload : baseplateFormData;
+    const payload = isBoxGenerator
+      ? boxPayload
+      : isEnclosureGenerator
+        ? enclosureFormData
+        : baseplateFormData;
 
     setLoading(true);
     try {
@@ -684,7 +780,11 @@ function App() {
       const link = document.createElement('a');
 
       link.href = objectUrl;
-      link.download = generatedType === 'box' ? 'gridfinity-box.stl' : 'gridfinity-baseplate.stl';
+      link.download = {
+        baseplate: 'gridfinity-baseplate.stl',
+        box: 'gridfinity-box.stl',
+        enclosure: 'gridfinity-enclosure.stl',
+      }[generatedType] || 'gridfinity-model.stl';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1347,7 +1447,7 @@ function App() {
       <div style={styles.sidebar}>
         <h1 style={styles.title}>Gridfinity Generator</h1>
         <p style={styles.subtitle}>
-          Customize parameters to build your {activeTab === 'box' ? 'grid-compatible box.' : 'configuration baseplate.'}
+          Customize parameters to build your {activeDescription}
         </p>
 
         <div style={styles.tabs} role="tablist" aria-label="Generator type">
@@ -1371,18 +1471,14 @@ function App() {
         
         <form onSubmit={(e) => { e.preventDefault(); generateSTL(); }} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div style={styles.grid}>
-            {(activeTab === 'baseplate' ? baseplateFields : boxFields).map((field) => {
-              const fieldValue = activeTab === 'baseplate'
-                ? baseplateFormData[field.name]
-                : boxFormData[field.name];
-
+            {activeFields.map((field) => {
               return (
                 <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
                   <label style={styles.label}>{field.label}</label>
                   <input
                     type="number"
                     name={field.name}
-                    value={fieldValue}
+                    value={activeFormData[field.name]}
                     onChange={handleInputChange}
                     step={field.step || 0.1}
                     min={field.min || 0}
@@ -1584,7 +1680,7 @@ function App() {
             disabled={loading} 
             style={{...styles.button, ...(loading ? styles.buttonDisabled : {})}}
           >
-            {loading ? 'Generating Layout...' : `Generate ${activeTab === 'box' ? 'Box' : 'Baseplate'} STL`}
+            {loading ? 'Generating Layout...' : `Generate ${activeGenerator.label} STL`}
           </button>
 
           {stlUrl && (
