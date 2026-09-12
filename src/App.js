@@ -36,25 +36,32 @@ const boxFields = [
 ];
 
 const enclosureFields = [
-  { name: 'total_width_mm', label: 'Total Width (mm)' },
-  { name: 'total_length_mm', label: 'Total Length (mm)' },
-  { name: 'cell_w', label: 'Cell Width (mm)' },
-  { name: 'cell_l', label: 'Cell Length (mm)' },
-  { name: 'box_height', label: 'Box Height (mm)' },
-  { name: 'lid_height', label: 'Lid Height (mm)' },
-  { name: 'wall_thickness', label: 'Wall Thickness (mm)' },
-  { name: 'base_thickness', label: 'Floor Thickness (mm)' },
-  { name: 'lid_thickness', label: 'Lid Thickness (mm)' },
-  { name: 'lid_lip_height', label: 'Lid Lip Height (mm)' },
-  { name: 'lid_clearance', label: 'Lid Clearance (mm)' },
-  { name: 'lid_open_angle', label: 'Lid Open Angle (deg)', min: 0 },
-  { name: 'bottom_pattern_height', label: 'Interior Baseplate Height (mm)' },
-  { name: 'cut_corner_radius', label: 'Pattern Corner Radius (mm)' },
-  { name: 'hinge_radius', label: 'Hinge Radius (mm)' },
-  { name: 'hinge_pin_radius', label: 'Hinge Pin Radius (mm)' },
-  { name: 'hinge_barrel_length', label: 'Hinge Barrel Length (mm)' },
-  { name: 'hinge_gap', label: 'Hinge Gap (mm)' },
-  { name: 'hinge_count', label: 'Hinge Count', step: 1, min: 1 },
+  { name: 'total_width_mm', label: 'Total Width (mm)', description: 'Inside width of the lower enclosure before wall thickness is added.' },
+  { name: 'total_length_mm', label: 'Total Length (mm)', description: 'Inside front-to-back length of the lower enclosure.' },
+  { name: 'cell_w', label: 'Cell Width (mm)', description: 'Gridfinity cell width used to place the interior floor pattern.' },
+  { name: 'cell_l', label: 'Cell Length (mm)', description: 'Gridfinity cell length used to place the interior floor pattern.' },
+  { name: 'box_height', label: 'Box Height (mm)', description: 'Height of the lower box body up to the hinge line.' },
+  { name: 'lid_height', label: 'Lid Height (mm)', description: 'Height of the upper lid body shown in the opened position.' },
+  { name: 'wall_thickness', label: 'Wall Thickness (mm)', description: 'Thickness of the outer box and lid walls.' },
+  { name: 'base_thickness', label: 'Floor Thickness (mm)', description: 'Solid floor thickness below the interior Gridfinity pattern.' },
+  { name: 'lid_thickness', label: 'Lid Thickness (mm)', description: 'Solid top thickness of the lid shell.' },
+  { name: 'lid_lip_height', label: 'Lid Lip Height (mm)', description: 'Depth of the inner lip that fits down into the lower box.' },
+  { name: 'lid_clearance', label: 'Lid Clearance (mm)', description: 'Extra clearance around the lid lip for fit tolerance.' },
+  { name: 'lid_open_angle', label: 'Lid Open Angle (deg)', min: 0, description: 'Preview angle for the opened lid; use 180 for fully open.' },
+  { name: 'bottom_pattern_height', label: 'Interior Baseplate Height (mm)', description: 'Depth/height reserved for the interior Gridfinity floor cuts.' },
+  { name: 'cut_corner_radius', label: 'Pattern Corner Radius (mm)', description: 'Corner radius used on the Gridfinity pattern cutters.' },
+  { name: 'hinge_radius', label: 'Hinge Ear Radius (mm)', description: 'Outer radius of the round hinge ear around the pin hole.' },
+  { name: 'hinge_pin_radius', label: 'Hinge Pin Radius (mm)', description: 'Radius of the hole through each hinge knuckle.' },
+  { name: 'hinge_barrel_length', label: 'Hinge Width (mm)', description: 'Total width of one 3-knuckle hinge assembly along the rear edge.' },
+  { name: 'hinge_gap', label: 'Hinge Gap (mm)', description: 'Spacing between separate hinge assemblies.' },
+  { name: 'hinge_count', label: 'Hinge Count', step: 1, min: 1, description: 'Number of hinge assemblies along the rear edge.' },
+  { name: 'hinge_knuckle_gap', label: 'Hinge Knuckle Gap (mm)', description: 'Small clearance between the two lower knuckles and the upper middle knuckle.' },
+  { name: 'hinge_offset_from_box', label: 'Hinge Offset From Box (mm)', description: 'Distance from the rear wall to the front edge of the hinge circle.' },
+  { name: 'hinge_side_margin', label: 'Hinge Side Margin (mm)', description: 'Minimum empty space from each side of the box to the hinge group.' },
+  { name: 'hinge_leaf_depth', label: 'Hinge Tab Depth (mm)', description: 'Legacy support depth value kept for compatibility; hinge support length is now radius plus offset.' },
+  { name: 'hinge_leaf_thickness', label: 'Hinge Strap Thickness (mm)', description: 'Thickness of the hinge cheeks, ramps, and lid-side connector plates.' },
+  { name: 'hinge_base_incline_height', label: 'Hinge Base Incline (mm)', description: 'How far below the hinge ear the printable lower ramp starts.' },
+  { name: 'hinge_top_cheek_length', label: 'Top Cheek Length (mm)', description: 'How far the upper hinge cheek climbs along the lid wall.' },
 ];
 
 const subdivisionFields = [
@@ -340,10 +347,17 @@ function App() {
     bottom_pattern_height: 3.2,
     cut_corner_radius: 3.0,
     hinge_radius: 3,
-    hinge_pin_radius: 1.2,
-    hinge_barrel_length: 18,
-    hinge_gap: 1,
-    hinge_count: 5
+    hinge_pin_radius: 1.5,
+    hinge_barrel_length: 30,
+    hinge_gap: 100,
+    hinge_count: 2,
+    hinge_knuckle_gap: 1,
+    hinge_offset_from_box: 2,
+    hinge_side_margin: 8,
+    hinge_leaf_depth: 14,
+    hinge_leaf_thickness: 2.4,
+    hinge_base_incline_height: 6,
+    hinge_top_cheek_length: 4
   });
 
   const activeGenerator = generatorTabs.find((tab) => tab.id === activeTab) || generatorTabs[0];
@@ -683,7 +697,39 @@ function App() {
       isEnclosureGenerator &&
       enclosureFormData.hinge_pin_radius >= enclosureFormData.hinge_radius
     ) {
-      alert('Hinge Pin Radius must be smaller than Hinge Radius.');
+      alert('Hinge Pin Radius must be smaller than Hinge Ear Radius.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      enclosureFormData.hinge_barrel_length <= enclosureFormData.hinge_knuckle_gap * 2
+    ) {
+      alert('Hinge Width must be larger than twice the Hinge Knuckle Gap.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      enclosureFormData.hinge_offset_from_box < 0
+    ) {
+      alert('Hinge Offset From Box must be 0 or greater.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      enclosureFormData.hinge_base_incline_height < 0
+    ) {
+      alert('Hinge Base Incline must be 0 or greater.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      enclosureFormData.hinge_top_cheek_length <= 0
+    ) {
+      alert('Top Cheek Length must be greater than 0.');
       return;
     }
 
@@ -1484,6 +1530,9 @@ function App() {
                     min={field.min || 0}
                     style={styles.input}
                   />
+                  {field.description && (
+                    <p style={styles.helperText}>{field.description}</p>
+                  )}
                 </div>
               );
             })}
