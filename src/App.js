@@ -48,6 +48,7 @@ const enclosureFields = [
   { name: 'lid_lip_height', label: 'Lid Lip Height (mm)', description: 'Depth of the inner lip that fits down into the lower box.' },
   { name: 'lid_clearance', label: 'Lid Clearance (mm)', description: 'Extra clearance around the lid lip for fit tolerance.' },
   { name: 'lid_open_angle', label: 'Lid Open Angle (deg)', min: 0, description: 'Preview angle for the opened lid; use 180 for fully open.' },
+  { name: 'fill_lid_end_surface', label: 'Fill Lid End Surface', type: 'checkbox', fullWidth: true, description: 'Adds the filled surface at the inside top plane of the lid.' },
   { name: 'bottom_pattern_height', label: 'Interior Baseplate Height (mm)', description: 'Depth/height reserved for the interior Gridfinity floor cuts.' },
   { name: 'cut_corner_radius', label: 'Pattern Corner Radius (mm)', description: 'Corner radius used on the Gridfinity pattern cutters.' },
   { name: 'hinge_radius', label: 'Hinge Ear Radius (mm)', description: 'Outer radius of the round hinge ear around the pin hole.' },
@@ -344,6 +345,7 @@ function App() {
     lid_lip_height: 4,
     lid_clearance: 0.35,
     lid_open_angle: 105,
+    fill_lid_end_surface: false,
     bottom_pattern_height: 3.2,
     cut_corner_radius: 3.0,
     hinge_radius: 3,
@@ -378,8 +380,8 @@ function App() {
   }[activeTab];
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    const parsedValue = parseFloat(value) || 0;
+    const { name, value, type, checked } = e.target;
+    const parsedValue = type === 'checkbox' ? checked : parseFloat(value) || 0;
 
     if (activeTab === 'baseplate') {
       setBaseplateFormData({ ...baseplateFormData, [name]: parsedValue });
@@ -1518,6 +1520,26 @@ function App() {
         <form onSubmit={(e) => { e.preventDefault(); generateSTL(); }} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div style={styles.grid}>
             {activeFields.map((field) => {
+              if (field.type === 'checkbox') {
+                return (
+                  <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
+                    <label style={styles.checkboxLabel}>
+                      <input
+                        type="checkbox"
+                        name={field.name}
+                        checked={Boolean(activeFormData[field.name])}
+                        onChange={handleInputChange}
+                        style={styles.checkbox}
+                      />
+                      {field.label}
+                    </label>
+                    {field.description && (
+                      <p style={styles.helperText}>{field.description}</p>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
                   <label style={styles.label}>{field.label}</label>
