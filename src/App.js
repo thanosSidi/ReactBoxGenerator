@@ -400,7 +400,7 @@ function App() {
     top_ramp_pattern: 'none'
   });
   const [enclosureFormData, setEnclosureFormData] = useState({
-    total_width_mm: 320,
+    total_width_mm: 160,
     total_length_mm: 80,
     cell_w: 40,
     cell_l: 40,
@@ -409,16 +409,16 @@ function App() {
     wall_thickness: 2,
     base_thickness: 4,
     lid_thickness: 2,
-    lid_lip_height: 4,
-    lid_clearance: 0.35,
-    lid_open_angle: 105,
+    lid_lip_height: 2,
+    lid_clearance: 0.4,
+    lid_open_angle: 180,
     fill_lid_end_surface: false,
     bottom_pattern_height: 3.2,
     cut_corner_radius: 3.0,
     hinge_radius: 3,
     hinge_pin_radius: 1.5,
     hinge_barrel_length: 30,
-    hinge_gap: 100,
+    hinge_gap: 80,
     hinge_count: 2,
     hinge_knuckle_gap: 1,
     hinge_offset_from_box: 2,
@@ -912,23 +912,44 @@ function App() {
   const styles = {
     container: {
       display: 'flex',
-      flexDirection: isMobile ? 'column' : 'row',
+      flexDirection: 'column',
       minHeight: isMobile ? '100svh' : '100vh',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       backgroundColor: '#f8fafc',
       color: '#1e293b',
     },
+    topBar: {
+      flex: '0 0 auto',
+      padding: isMobile ? '14px 12px 12px' : '18px 24px',
+      borderBottom: '1px solid #e2e8f0',
+      backgroundColor: '#ffffff',
+      boxShadow: '0 2px 8px -6px rgb(15 23 42 / 0.35)',
+      zIndex: 20,
+    },
+    topBarInner: {
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : 'minmax(220px, 360px) minmax(0, 1fr)',
+      alignItems: 'center',
+      gap: isMobile ? '12px' : '24px',
+      width: '100%',
+    },
+    workspace: {
+      flex: '1 1 auto',
+      minHeight: 0,
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row',
+    },
     sidebar: {
-      width: isMobile ? 'auto' : '520px',
-      order: isMobile && stlUrl ? 2 : 1,
-      maxHeight: isMobile ? 'none' : '100vh',
+      width: isMobile ? '100%' : '440px',
+      flex: isMobile ? '0 0 auto' : '0 0 440px',
+      order: 1,
+      maxHeight: isMobile ? 'none' : 'calc(100vh - 99px)',
       boxSizing: 'border-box',
-      padding: isMobile ? '16px 12px calc(18px + env(safe-area-inset-bottom))' : '28px',
+      padding: isMobile ? '14px 12px calc(18px + env(safe-area-inset-bottom))' : '22px',
       overflowY: isMobile ? 'visible' : 'auto',
       backgroundColor: '#ffffff',
       borderRight: isMobile ? 'none' : '1px solid #e2e8f0',
       borderBottom: isMobile ? '1px solid #e2e8f0' : 'none',
-      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
       display: 'flex',
       flexDirection: 'column',
     },
@@ -942,7 +963,7 @@ function App() {
     subtitle: {
       fontSize: isMobile ? '13px' : '14px',
       color: '#64748b',
-      margin: isMobile ? '0 0 14px 0' : '0 0 24px 0',
+      margin: 0,
     },
     modeLabel: {
       margin: '0 0 8px 0',
@@ -954,32 +975,33 @@ function App() {
     },
     tabs: {
       display: 'grid',
-      gridTemplateColumns: '1fr',
-      gap: '8px',
+      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+      gap: isMobile ? '6px' : '8px',
       padding: '0',
-      marginBottom: isMobile ? '14px' : '20px',
+      marginBottom: 0,
       borderRadius: '8px',
       backgroundColor: 'transparent',
     },
     tabButton: {
-      minHeight: '58px',
-      padding: '10px 12px',
+      minHeight: isMobile ? '46px' : '58px',
+      padding: isMobile ? '9px 8px' : '10px 12px',
       border: '1px solid #e2e8f0',
       borderRadius: '6px',
       backgroundColor: '#f8fafc',
       color: '#334155',
-      fontSize: '14px',
+      fontSize: isMobile ? '13px' : '14px',
       fontWeight: 650,
       cursor: 'pointer',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'flex-start',
+      alignItems: isMobile ? 'center' : 'flex-start',
       justifyContent: 'center',
       gap: '3px',
-      textAlign: 'left',
+      textAlign: isMobile ? 'center' : 'left',
       transition: 'background-color 0.2s, color 0.2s, box-shadow 0.2s',
     },
     tabDescription: {
+      display: isMobile ? 'none' : 'block',
       fontSize: '12px',
       fontWeight: 500,
       color: '#64748b',
@@ -1365,15 +1387,16 @@ function App() {
       transition: 'background-color 0.2s, border-color 0.2s',
     },
     canvasContainer: {
-      flex: '0 0 auto',
-      order: isMobile && stlUrl ? 1 : 2,
-      width: isMobile ? '100%' : 'min(calc(100vw - 520px), 100vh)',
-      maxWidth: isMobile ? '100%' : 'calc(100vw - 520px)',
-      aspectRatio: '1 / 1',
+      flex: isMobile ? '0 0 auto' : '1 1 auto',
+      order: 2,
+      width: isMobile ? '100%' : 'auto',
+      maxWidth: '100%',
+      height: isMobile ? '42svh' : 'auto',
+      minHeight: isMobile ? '300px' : 'calc(100vh - 99px)',
       backgroundColor: '#f1f5f9',
       position: 'relative',
-      alignSelf: isMobile ? 'stretch' : 'center',
-      margin: isMobile ? 0 : 'auto',
+      alignSelf: 'stretch',
+      margin: 0,
       overflow: 'hidden',
       borderBottom: isMobile ? '1px solid #e2e8f0' : 'none',
     },
@@ -1640,40 +1663,49 @@ function App() {
         }
       `}</style>
 
-      <div style={styles.sidebar}>
-        <h1 style={styles.title}>Gridfinity Generator</h1>
-        <p style={styles.subtitle}>
-          Build plates, boxes, and hinged enclosures from one workspace.
-        </p>
+      <header style={styles.topBar}>
+        <div style={styles.topBarInner}>
+          <div>
+            <h1 style={styles.title}>Gridfinity Generator</h1>
+            <p style={styles.subtitle}>
+              Build plates, boxes, and hinged enclosures from one workspace.
+            </p>
+          </div>
 
-        <p style={styles.modeLabel}>Generator</p>
-        <div style={styles.tabs} role="tablist" aria-label="Generator type">
-          {generatorTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className="generator-tab"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                ...styles.tabButton,
-                ...(activeTab === tab.id ? styles.activeTabButton : {}),
-              }}
-            >
-              <span>{tab.label}</span>
-              <span
-                style={{
-                  ...styles.tabDescription,
-                  ...(activeTab === tab.id ? styles.activeTabDescription : {}),
-                }}
-              >
-                {tab.description}
-              </span>
-            </button>
-          ))}
+          <div>
+            <p style={styles.modeLabel}>Generator</p>
+            <div style={styles.tabs} role="tablist" aria-label="Generator type">
+              {generatorTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className="generator-tab"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    ...styles.tabButton,
+                    ...(activeTab === tab.id ? styles.activeTabButton : {}),
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    style={{
+                      ...styles.tabDescription,
+                      ...(activeTab === tab.id ? styles.activeTabDescription : {}),
+                    }}
+                  >
+                    {tab.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-        
+      </header>
+
+      <main style={styles.workspace}>
+        <div style={styles.sidebar}>
         <form onSubmit={(e) => { e.preventDefault(); generateSTL(); }} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div style={styles.formSections}>
             {activeSections.map((section) => (
@@ -1931,6 +1963,7 @@ function App() {
           <CameraControls ref={controlsRef} />
         </Canvas>
       </div>
+      </main>
     </div>
   );
 }
