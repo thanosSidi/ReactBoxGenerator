@@ -8,9 +8,9 @@ const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '
 const TOP_RAMP_MIN_INNER_WALL_HEIGHT_DIFFERENCE = 3.8;
 
 const generatorTabs = [
-  { id: 'baseplate', label: 'Baseplate' },
-  { id: 'box', label: 'Box' },
-  { id: 'enclosure', label: 'Enclosure' },
+  { id: 'baseplate', label: 'Baseplate', description: 'Flat Gridfinity floor plates' },
+  { id: 'box', label: 'Box', description: 'Bins with optional dividers' },
+  { id: 'enclosure', label: 'Enclosure', description: 'Hinged cases with lids' },
 ];
   
 const baseplateFields = [
@@ -69,6 +69,73 @@ const subdivisionFields = [
   { name: 'inner_wall_thickness', label: 'Inner Wall Thickness (mm)' },
   { name: 'inner_wall_height_difference', label: 'Inner Wall Height Difference (mm)' },
 ];
+
+function pickFields(fields, names) {
+  const fieldsByName = new Map(fields.map((field) => [field.name, field]));
+  return names.map((name) => fieldsByName.get(name)).filter(Boolean);
+}
+
+const formSections = {
+  baseplate: [
+    {
+      title: 'Plate Size',
+      description: 'Overall footprint and Gridfinity cell spacing.',
+      fields: pickFields(baseplateFields, ['total_width_mm', 'total_length_mm', 'cell_w', 'cell_l']),
+    },
+    {
+      title: 'Print Layout',
+      description: 'Printer bed limits and tile/export details.',
+      fields: pickFields(baseplateFields, ['printer_w', 'printer_l', 'base_height', 'tile_gap_mm', 'cut_corner_radius']),
+    },
+  ],
+  box: [
+    {
+      title: 'Box Body',
+      description: 'Main bin dimensions and shell thickness.',
+      fields: pickFields(boxFields, ['total_width_mm', 'total_length_mm', 'box_height', 'box_wall_thickness', 'box_base_thickness']),
+    },
+    {
+      title: 'Grid Fit',
+      description: 'Cell dimensions used by the Gridfinity pattern.',
+      fields: pickFields(boxFields, ['cell_w', 'cell_l']),
+    },
+  ],
+  enclosure: [
+    {
+      title: 'Lower Body',
+      description: 'The base tray dimensions and wall/floor thickness.',
+      fields: pickFields(enclosureFields, ['total_width_mm', 'total_length_mm', 'box_height', 'wall_thickness', 'base_thickness']),
+    },
+    {
+      title: 'Lid And Fit',
+      description: 'Lid height, lip, clearance, and preview opening angle.',
+      fields: pickFields(enclosureFields, ['lid_height', 'lid_thickness', 'lid_lip_height', 'lid_clearance', 'lid_open_angle', 'fill_lid_end_surface']),
+    },
+    {
+      title: 'Interior Pattern',
+      description: 'Gridfinity floor cut depth and corner radius.',
+      fields: pickFields(enclosureFields, ['cell_w', 'cell_l', 'bottom_pattern_height', 'cut_corner_radius']),
+    },
+    {
+      title: 'Hinges',
+      description: 'Hinge placement, pin, knuckle, and support geometry.',
+      fields: pickFields(enclosureFields, [
+        'hinge_radius',
+        'hinge_pin_radius',
+        'hinge_barrel_length',
+        'hinge_gap',
+        'hinge_count',
+        'hinge_knuckle_gap',
+        'hinge_offset_from_box',
+        'hinge_side_margin',
+        'hinge_leaf_depth',
+        'hinge_leaf_thickness',
+        'hinge_base_incline_height',
+        'hinge_top_cheek_length',
+      ]),
+    },
+  ],
+};
 
 const topRampPatternOptions = [
   { value: 'none', label: 'None' },
@@ -363,16 +430,7 @@ function App() {
   });
 
   const activeGenerator = generatorTabs.find((tab) => tab.id === activeTab) || generatorTabs[0];
-  const activeDescription = {
-    baseplate: 'configuration baseplate.',
-    box: 'grid-compatible box.',
-    enclosure: 'hinged enclosure.',
-  }[activeTab];
-  const activeFields = {
-    baseplate: baseplateFields,
-    box: boxFields,
-    enclosure: enclosureFields,
-  }[activeTab];
+  const activeSections = formSections[activeTab] || formSections.baseplate;
   const activeFormData = {
     baseplate: baseplateFormData,
     box: boxFormData,
@@ -886,31 +944,81 @@ function App() {
       color: '#64748b',
       margin: isMobile ? '0 0 14px 0' : '0 0 24px 0',
     },
+    modeLabel: {
+      margin: '0 0 8px 0',
+      fontSize: '12px',
+      fontWeight: 750,
+      color: '#475569',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+    },
     tabs: {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '4px',
-      padding: '4px',
-      marginBottom: isMobile ? '14px' : '24px',
+      gridTemplateColumns: '1fr',
+      gap: '8px',
+      padding: '0',
+      marginBottom: isMobile ? '14px' : '20px',
       borderRadius: '8px',
-      backgroundColor: '#e2e8f0',
+      backgroundColor: 'transparent',
     },
     tabButton: {
-      minHeight: '40px',
-      padding: '9px 12px',
-      border: 'none',
+      minHeight: '58px',
+      padding: '10px 12px',
+      border: '1px solid #e2e8f0',
       borderRadius: '6px',
-      backgroundColor: 'transparent',
-      color: '#475569',
+      backgroundColor: '#f8fafc',
+      color: '#334155',
       fontSize: '14px',
       fontWeight: 650,
       cursor: 'pointer',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      gap: '3px',
+      textAlign: 'left',
       transition: 'background-color 0.2s, color 0.2s, box-shadow 0.2s',
+    },
+    tabDescription: {
+      fontSize: '12px',
+      fontWeight: 500,
+      color: '#64748b',
+      lineHeight: 1.25,
     },
     activeTabButton: {
       backgroundColor: '#ffffff',
       color: '#1e3a8a',
-      boxShadow: '0 1px 3px 0 rgb(15 23 42 / 0.12)',
+      borderColor: '#93c5fd',
+      boxShadow: '0 1px 4px 0 rgb(15 23 42 / 0.12)',
+    },
+    activeTabDescription: {
+      color: '#1d4ed8',
+    },
+    formSections: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: isMobile ? '12px' : '14px',
+    },
+    formSection: {
+      padding: isMobile ? '12px' : '14px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      backgroundColor: '#ffffff',
+    },
+    sectionHeader: {
+      marginBottom: '12px',
+    },
+    sectionTitle: {
+      margin: '0 0 3px 0',
+      fontSize: '14px',
+      fontWeight: 750,
+      color: '#0f172a',
+    },
+    sectionDescription: {
+      margin: 0,
+      fontSize: '12px',
+      lineHeight: 1.4,
+      color: '#64748b',
     },
     grid: {
       display: 'grid',
@@ -1452,6 +1560,46 @@ function App() {
     );
   };
 
+  const renderField = (field) => {
+    if (field.type === 'checkbox') {
+      return (
+        <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
+          <label style={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              name={field.name}
+              checked={Boolean(activeFormData[field.name])}
+              onChange={handleInputChange}
+              style={styles.checkbox}
+            />
+            {field.label}
+          </label>
+          {field.description && (
+            <p style={styles.helperText}>{field.description}</p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
+        <label style={styles.label}>{field.label}</label>
+        <input
+          type="number"
+          name={field.name}
+          value={activeFormData[field.name]}
+          onChange={handleInputChange}
+          step={field.step || 0.1}
+          min={field.min || 0}
+          style={styles.input}
+        />
+        {field.description && (
+          <p style={styles.helperText}>{field.description}</p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={styles.container}>
       <style>{`
@@ -1495,9 +1643,10 @@ function App() {
       <div style={styles.sidebar}>
         <h1 style={styles.title}>Gridfinity Generator</h1>
         <p style={styles.subtitle}>
-          Customize parameters to build your {activeDescription}
+          Build plates, boxes, and hinged enclosures from one workspace.
         </p>
 
+        <p style={styles.modeLabel}>Generator</p>
         <div style={styles.tabs} role="tablist" aria-label="Generator type">
           {generatorTabs.map((tab) => (
             <button
@@ -1512,52 +1661,32 @@ function App() {
                 ...(activeTab === tab.id ? styles.activeTabButton : {}),
               }}
             >
-              {tab.label}
+              <span>{tab.label}</span>
+              <span
+                style={{
+                  ...styles.tabDescription,
+                  ...(activeTab === tab.id ? styles.activeTabDescription : {}),
+                }}
+              >
+                {tab.description}
+              </span>
             </button>
           ))}
         </div>
         
         <form onSubmit={(e) => { e.preventDefault(); generateSTL(); }} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          <div style={styles.grid}>
-            {activeFields.map((field) => {
-              if (field.type === 'checkbox') {
-                return (
-                  <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
-                    <label style={styles.checkboxLabel}>
-                      <input
-                        type="checkbox"
-                        name={field.name}
-                        checked={Boolean(activeFormData[field.name])}
-                        onChange={handleInputChange}
-                        style={styles.checkbox}
-                      />
-                      {field.label}
-                    </label>
-                    {field.description && (
-                      <p style={styles.helperText}>{field.description}</p>
-                    )}
-                  </div>
-                );
-              }
-
-              return (
-                <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
-                  <label style={styles.label}>{field.label}</label>
-                  <input
-                    type="number"
-                    name={field.name}
-                    value={activeFormData[field.name]}
-                    onChange={handleInputChange}
-                    step={field.step || 0.1}
-                    min={field.min || 0}
-                    style={styles.input}
-                  />
-                  {field.description && (
-                    <p style={styles.helperText}>{field.description}</p>
-                  )}
+          <div style={styles.formSections}>
+            {activeSections.map((section) => (
+              <section key={section.title} style={styles.formSection}>
+                <div style={styles.sectionHeader}>
+                  <h2 style={styles.sectionTitle}>{section.title}</h2>
+                  <p style={styles.sectionDescription}>{section.description}</p>
                 </div>
-              );
-            })}
+                <div style={styles.grid}>
+                  {section.fields.map(renderField)}
+                </div>
+              </section>
+            ))}
           </div>
 
           {activeTab === 'box' && (
