@@ -42,9 +42,9 @@ const enclosureFields = [
   { name: 'cell_l', label: 'Cell Length (mm)', description: 'Gridfinity cell length used to place the interior floor pattern.' },
   { name: 'box_height', label: 'Box Height (mm)', description: 'Height of the lower box body up to the hinge line.' },
   { name: 'lid_height', label: 'Lid Height (mm)', description: 'Height of the upper lid body shown in the opened position.' },
-  { name: 'wall_thickness', label: 'Wall Thickness (mm)', description: 'Thickness of the outer box and lid walls.' },
+  { name: 'wall_thickness', label: 'Wall Thickness (mm)', description: 'Thickness of the lower box outer walls.' },
   { name: 'base_thickness', label: 'Floor Thickness (mm)', description: 'Solid floor thickness below the interior Gridfinity pattern.' },
-  { name: 'lid_thickness', label: 'Lid Thickness (mm)', description: 'Solid top thickness of the lid shell.' },
+  { name: 'lid_thickness', label: 'Lid Thickness (mm)', description: 'Thickness of the lid wall and top.' },
   { name: 'lid_lip_height', label: 'Lid Lip Height (mm)', description: 'Depth of the inner lip that fits down into the lower box.' },
   { name: 'lid_clearance', label: 'Lid Clearance (mm)', description: 'Extra clearance around the lid lip for fit tolerance.' },
   { name: 'lid_open_angle', label: 'Lid Open Angle (deg)', min: 0, description: 'Preview angle for the opened lid; use 180 for fully open.' },
@@ -417,9 +417,9 @@ function App() {
     cell_l: 40,
     box_height: 28,
     lid_height: 10,
-    wall_thickness: 2,
+    wall_thickness: 2.5,
     base_thickness: 4,
-    lid_thickness: 2,
+    lid_thickness: 1,
     lid_lip_height: 2,
     lid_clearance: 0.4,
     lid_open_angle: 180,
@@ -775,6 +775,14 @@ function App() {
       enclosureFormData.hinge_pin_diameter >= enclosureFormData.hinge_diameter
     ) {
       alert('Hinge Pin Hole Diameter must be smaller than Hinge Ear Diameter.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      enclosureFormData.box_height - enclosureFormData.base_thickness < enclosureFormData.lid_thickness + enclosureFormData.lid_lip_height
+    ) {
+      alert('Box height above the floor must be at least Lid Thickness plus Lid Lip Height.');
       return;
     }
 
