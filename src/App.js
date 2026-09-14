@@ -67,6 +67,7 @@ const enclosureFields = [
   { name: 'clamp_width', label: 'Clamp Width (mm)', description: 'Clear width of each clamp between the two side pillars.' },
   { name: 'clamp_distance', label: 'Clamp Distance (mm)', description: 'Distance between neighboring clamp mount positions.' },
   { name: 'clamp_hole_diameter', label: 'Clamp Hole Diameter (mm)', description: 'Diameter of the mounting hole through each clamp pillar.' },
+  { name: 'clamp_pillar_width', label: 'Clamp Pillar Width (mm)', description: 'Width of each clamp pillar.' },
   { name: 'bottom_clamp_hole_height', label: 'Bottom Clamp Hole Height (mm)', min: 6, description: 'Height of the lower box clamp hole center above the bottom surface.' },
 ];
 
@@ -142,7 +143,7 @@ const formSections = {
     {
       title: 'Clamp Mounts',
       description: 'Front latch pillars with through-holes for clamp hardware.',
-      fields: pickFields(enclosureFields, ['clamp_count', 'clamp_width', 'clamp_distance', 'clamp_hole_diameter', 'bottom_clamp_hole_height']),
+      fields: pickFields(enclosureFields, ['clamp_count', 'clamp_width', 'clamp_distance', 'clamp_hole_diameter', 'clamp_pillar_width', 'bottom_clamp_hole_height']),
     },
   ],
 };
@@ -441,6 +442,7 @@ function App() {
     clamp_width: 18,
     clamp_distance: 40,
     clamp_hole_diameter: 3,
+    clamp_pillar_width: 5,
     bottom_clamp_hole_height: 8
   });
 
@@ -783,10 +785,11 @@ function App() {
         enclosureFormData.clamp_width <= 0 ||
         enclosureFormData.clamp_distance < 0 ||
         enclosureFormData.clamp_hole_diameter <= 0 ||
+        enclosureFormData.clamp_pillar_width <= enclosureFormData.clamp_hole_diameter ||
         enclosureFormData.bottom_clamp_hole_height < 6
       )
     ) {
-      alert('Clamp Count must be 0 or greater, Clamp Width/Distance/Hole Diameter must be valid, and Bottom Clamp Hole Height must be at least 6 mm.');
+      alert('Clamp Count must be 0 or greater, Clamp dimensions must be valid, Clamp Pillar Width must be larger than the hole diameter, and Bottom Clamp Hole Height must be at least 6 mm.');
       return;
     }
 
