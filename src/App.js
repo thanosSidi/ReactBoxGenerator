@@ -22,7 +22,7 @@ const baseplateFields = [
   { name: 'printer_l', label: 'Printer Length (mm)' },
   { name: 'base_height', label: 'Base Height (mm)' },
   { name: 'tile_gap_mm', label: 'Tile Gap (mm)' },
-  { name: 'cut_corner_radius', label: 'Corner Radius (mm)', fullWidth: true },
+  { name: 'cut_corner_diameter', label: 'Corner Diameter (mm)', fullWidth: true },
 ];
 
 const boxFields = [
@@ -50,19 +50,24 @@ const enclosureFields = [
   { name: 'lid_open_angle', label: 'Lid Open Angle (deg)', min: 0, description: 'Preview angle for the opened lid; use 180 for fully open.' },
   { name: 'fill_lid_end_surface', label: 'Fill Lid End Surface', type: 'checkbox', fullWidth: true, description: 'Adds the filled surface at the inside top plane of the lid.' },
   { name: 'bottom_pattern_height', label: 'Interior Baseplate Height (mm)', description: 'Depth/height reserved for the interior Gridfinity floor cuts.' },
-  { name: 'cut_corner_radius', label: 'Pattern Corner Radius (mm)', description: 'Corner radius used on the Gridfinity pattern cutters.' },
-  { name: 'hinge_radius', label: 'Hinge Ear Radius (mm)', description: 'Outer radius of the round hinge ear around the pin hole.' },
-  { name: 'hinge_pin_radius', label: 'Hinge Pin Radius (mm)', description: 'Radius of the hole through each hinge knuckle.' },
+  { name: 'cut_corner_diameter', label: 'Pattern Corner Diameter (mm)', description: 'Corner diameter used on the Gridfinity pattern cutters.' },
+  { name: 'hinge_diameter', label: 'Hinge Ear Diameter (mm)', description: 'Outer diameter of the round hinge ear around the pin hole.' },
+  { name: 'hinge_pin_diameter', label: 'Hinge Pin Hole Diameter (mm)', description: 'Diameter of the hole through each hinge knuckle.' },
   { name: 'hinge_barrel_length', label: 'Hinge Width (mm)', description: 'Total width of one 3-knuckle hinge assembly along the rear edge.' },
   { name: 'hinge_gap', label: 'Hinge Gap (mm)', description: 'Spacing between separate hinge assemblies.' },
   { name: 'hinge_count', label: 'Hinge Count', step: 1, min: 1, description: 'Number of hinge assemblies along the rear edge.' },
   { name: 'hinge_knuckle_gap', label: 'Hinge Knuckle Gap (mm)', description: 'Small clearance between the two lower knuckles and the upper middle knuckle.' },
   { name: 'hinge_offset_from_box', label: 'Hinge Offset From Box (mm)', description: 'Distance from the rear wall to the front edge of the hinge circle.' },
   { name: 'hinge_side_margin', label: 'Hinge Side Margin (mm)', description: 'Minimum empty space from each side of the box to the hinge group.' },
-  { name: 'hinge_leaf_depth', label: 'Hinge Tab Depth (mm)', description: 'Legacy support depth value kept for compatibility; hinge support length is now radius plus offset.' },
+  { name: 'hinge_leaf_depth', label: 'Hinge Tab Depth (mm)', description: 'Legacy support depth value kept for compatibility; hinge support length is now based on hinge diameter and offset.' },
   { name: 'hinge_leaf_thickness', label: 'Hinge Strap Thickness (mm)', description: 'Thickness of the hinge cheeks, ramps, and lid-side connector plates.' },
   { name: 'hinge_base_incline_height', label: 'Hinge Base Incline (mm)', description: 'How far below the hinge ear the printable lower ramp starts.' },
   { name: 'hinge_top_cheek_length', label: 'Top Cheek Length (mm)', description: 'How far the upper hinge cheek climbs along the lid wall.' },
+  { name: 'clamp_count', label: 'Clamp Count', step: 1, min: 0, description: 'Number of clamp mount positions on the front edge.' },
+  { name: 'clamp_width', label: 'Clamp Width (mm)', description: 'Clear width of each clamp between the two side pillars.' },
+  { name: 'clamp_distance', label: 'Clamp Distance (mm)', description: 'Distance between neighboring clamp mount positions.' },
+  { name: 'clamp_hole_diameter', label: 'Clamp Hole Diameter (mm)', description: 'Diameter of the mounting hole through each clamp pillar.' },
+  { name: 'bottom_clamp_hole_height', label: 'Bottom Clamp Hole Height (mm)', min: 6, description: 'Height of the lower box clamp hole center above the bottom surface.' },
 ];
 
 const subdivisionFields = [
@@ -85,7 +90,7 @@ const formSections = {
     {
       title: 'Print Layout',
       description: 'Printer bed limits and tile/export details.',
-      fields: pickFields(baseplateFields, ['printer_w', 'printer_l', 'base_height', 'tile_gap_mm', 'cut_corner_radius']),
+      fields: pickFields(baseplateFields, ['printer_w', 'printer_l', 'base_height', 'tile_gap_mm', 'cut_corner_diameter']),
     },
   ],
   box: [
@@ -113,15 +118,15 @@ const formSections = {
     },
     {
       title: 'Interior Pattern',
-      description: 'Gridfinity floor cut depth and corner radius.',
-      fields: pickFields(enclosureFields, ['cell_w', 'cell_l', 'bottom_pattern_height', 'cut_corner_radius']),
+      description: 'Gridfinity floor cut depth and corner diameter.',
+      fields: pickFields(enclosureFields, ['cell_w', 'cell_l', 'bottom_pattern_height', 'cut_corner_diameter']),
     },
     {
       title: 'Hinges',
       description: 'Hinge placement, pin, knuckle, and support geometry.',
       fields: pickFields(enclosureFields, [
-        'hinge_radius',
-        'hinge_pin_radius',
+        'hinge_diameter',
+        'hinge_pin_diameter',
         'hinge_barrel_length',
         'hinge_gap',
         'hinge_count',
@@ -133,6 +138,11 @@ const formSections = {
         'hinge_base_incline_height',
         'hinge_top_cheek_length',
       ]),
+    },
+    {
+      title: 'Clamp Mounts',
+      description: 'Front latch pillars with through-holes for clamp hardware.',
+      fields: pickFields(enclosureFields, ['clamp_count', 'clamp_width', 'clamp_distance', 'clamp_hole_diameter', 'bottom_clamp_hole_height']),
     },
   ],
 };
@@ -383,7 +393,7 @@ function App() {
     printer_l: 250,
     base_height: 3.4,
     tile_gap_mm: 20,
-    cut_corner_radius: 3.0
+    cut_corner_diameter: 6.0
   });
   const [boxFormData, setBoxFormData] = useState({
     box_wall_thickness: 1,
@@ -414,9 +424,9 @@ function App() {
     lid_open_angle: 180,
     fill_lid_end_surface: false,
     bottom_pattern_height: 3.2,
-    cut_corner_radius: 3.0,
-    hinge_radius: 3,
-    hinge_pin_radius: 1.5,
+    cut_corner_diameter: 6.0,
+    hinge_diameter: 6,
+    hinge_pin_diameter: 3,
     hinge_barrel_length: 30,
     hinge_gap: 80,
     hinge_count: 2,
@@ -426,7 +436,12 @@ function App() {
     hinge_leaf_depth: 14,
     hinge_leaf_thickness: 2.4,
     hinge_base_incline_height: 6,
-    hinge_top_cheek_length: 4
+    hinge_top_cheek_length: 4,
+    clamp_count: 0,
+    clamp_width: 18,
+    clamp_distance: 40,
+    clamp_hole_diameter: 3,
+    bottom_clamp_hole_height: 8
   });
 
   const activeGenerator = generatorTabs.find((tab) => tab.id === activeTab) || generatorTabs[0];
@@ -755,10 +770,32 @@ function App() {
 
     if (
       isEnclosureGenerator &&
-      enclosureFormData.hinge_pin_radius >= enclosureFormData.hinge_radius
+      enclosureFormData.hinge_pin_diameter >= enclosureFormData.hinge_diameter
     ) {
-      alert('Hinge Pin Radius must be smaller than Hinge Ear Radius.');
+      alert('Hinge Pin Hole Diameter must be smaller than Hinge Ear Diameter.');
       return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      (
+        enclosureFormData.clamp_count < 0 ||
+        enclosureFormData.clamp_width <= 0 ||
+        enclosureFormData.clamp_distance < 0 ||
+        enclosureFormData.clamp_hole_diameter <= 0 ||
+        enclosureFormData.bottom_clamp_hole_height < 6
+      )
+    ) {
+      alert('Clamp Count must be 0 or greater, Clamp Width/Distance/Hole Diameter must be valid, and Bottom Clamp Hole Height must be at least 6 mm.');
+      return;
+    }
+
+    if (isEnclosureGenerator) {
+      const maxBottomClampHoleHeight = enclosureFormData.box_height - 6;
+      if (enclosureFormData.bottom_clamp_hole_height > maxBottomClampHoleHeight) {
+        alert(`Bottom Clamp Hole Height must be at least 6 mm below the box top edge. Maximum is ${maxBottomClampHoleHeight.toFixed(2)} mm.`);
+        return;
+      }
     }
 
     if (
