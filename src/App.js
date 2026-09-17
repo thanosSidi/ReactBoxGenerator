@@ -48,7 +48,7 @@ const enclosureFields = [
   { name: 'lid_lip_height', label: 'Lid Lip Height (mm)', description: 'Depth of the inner lip that fits down into the lower box.' },
   { name: 'lid_clearance', label: 'Lid Clearance (mm)', description: 'Extra clearance around the lid lip for fit tolerance.' },
   { name: 'lid_open_angle', label: 'Lid Open Angle (deg)', min: 0, description: 'Preview angle for the opened lid; use 180 for fully open.' },
-  { name: 'fill_lid_end_surface', label: 'Fill Lid End Surface', type: 'checkbox', fullWidth: true, description: 'Adds the filled surface at the inside top plane of the lid.' },
+  { name: 'lid_end_surface_mode', label: 'Lid End Surface', type: 'select', options: 'lidEndSurfaceMode', fullWidth: true, description: 'Controls the inside top of the lid.' },
   { name: 'bottom_pattern_height', label: 'Interior Baseplate Height (mm)', description: 'Depth/height reserved for the interior Gridfinity floor cuts.' },
   { name: 'cut_corner_diameter', label: 'Pattern Corner Diameter (mm)', description: 'Corner diameter used on the Gridfinity pattern cutters.' },
   { name: 'hinge_diameter', label: 'Hinge Ear Diameter (mm)', description: 'Outer diameter of the round hinge ear around the pin hole.' },
@@ -115,7 +115,7 @@ const formSections = {
     {
       title: 'Lid And Fit',
       description: 'Lid height, lip, clearance, and preview opening angle.',
-      fields: pickFields(enclosureFields, ['lid_height', 'lid_thickness', 'lid_lip_height', 'lid_clearance', 'lid_open_angle', 'fill_lid_end_surface']),
+      fields: pickFields(enclosureFields, ['lid_height', 'lid_thickness', 'lid_lip_height', 'lid_clearance', 'lid_open_angle', 'lid_end_surface_mode']),
     },
     {
       title: 'Interior Pattern',
@@ -151,6 +151,12 @@ const formSections = {
 const topRampPatternOptions = [
   { value: 'none', label: 'None' },
   { value: 'normal', label: 'Normal' },
+];
+
+const lidEndSurfaceModeOptions = [
+  { value: 'empty', label: 'Empty' },
+  { value: 'filled', label: 'Filled' },
+  { value: 'with_plate_pattern', label: 'With Plate Pattern' },
 ];
 
 const mergeGroupColors = ['#f97316', '#14b8a6', '#8b5cf6', '#22c55e', '#ef4444', '#0ea5e9'];
@@ -423,7 +429,7 @@ function App() {
     lid_lip_height: 2,
     lid_clearance: 0.4,
     lid_open_angle: 180,
-    fill_lid_end_surface: false,
+    lid_end_surface_mode: 'empty',
     bottom_pattern_height: 3.2,
     cut_corner_diameter: 6.0,
     hinge_diameter: 6,
@@ -469,7 +475,11 @@ function App() {
 
   const handleSelectChange = (e) => {
     const { name, value } = e.target;
-    setBoxFormData({ ...boxFormData, [name]: value });
+    if (activeTab === 'box') {
+      setBoxFormData({ ...boxFormData, [name]: value });
+    } else if (activeTab === 'enclosure') {
+      setEnclosureFormData({ ...enclosureFormData, [name]: value });
+    }
   };
 
   const updateDimensionValue = (dimensionType, index, value) => {
@@ -846,6 +856,15 @@ function App() {
       enclosureFormData.base_thickness < enclosureFormData.bottom_pattern_height
     ) {
       alert('Floor Thickness must be at least the Interior Baseplate Height.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
+      enclosureFormData.lid_end_surface_mode === 'with_plate_pattern' &&
+      enclosureFormData.lid_height - enclosureFormData.lid_thickness < enclosureFormData.bottom_pattern_height
+    ) {
+      alert('Lid inner height must be at least the Interior Baseplate Height when Lid End Surface uses the plate pattern.');
       return;
     }
 
@@ -1645,6 +1664,33 @@ function App() {
             />
             {field.label}
           </label>
+          {field.description && (
+            <p style={styles.helperText}>{field.description}</p>
+          )}
+        </div>
+      );
+    }
+
+    if (field.type === 'select') {
+      const options = {
+        lidEndSurfaceMode: lidEndSurfaceModeOptions,
+      }[field.options] || [];
+
+      return (
+        <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
+          <label style={styles.label}>{field.label}</label>
+          <select
+            name={field.name}
+            value={activeFormData[field.name]}
+            onChange={handleSelectChange}
+            style={styles.select}
+          >
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           {field.description && (
             <p style={styles.helperText}>{field.description}</p>
           )}
