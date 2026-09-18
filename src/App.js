@@ -28,8 +28,9 @@ const baseplateFields = [
 const boxFields = [
   { name: 'box_wall_thickness', label: 'Wall Thickness (mm)' },
   { name: 'box_height', label: 'Box Height (mm)' },
-  { name: 'total_width_mm', label: 'Total Width (mm)' },
-  { name: 'total_length_mm', label: 'Total Length (mm)' },
+  { name: 'total_width_mm', label: 'Nominal Width (mm)', description: 'Grid width before the outside size clearance is applied.' },
+  { name: 'total_length_mm', label: 'Nominal Length (mm)', description: 'Grid length before the outside size clearance is applied.' },
+  { name: 'box_size_clearance', label: 'Size Clearance (mm)', min: 0, description: 'Subtracted once from both outside dimensions. For example, 80 x 80 with 0.2 clearance produces 79.8 x 79.8 mm.' },
   { name: 'cell_w', label: 'Cell Width (mm)' },
   { name: 'cell_l', label: 'Cell Length (mm)' },
   { name: 'box_base_thickness', label: 'Base Thickness (mm)', fullWidth: true },
@@ -97,8 +98,8 @@ const formSections = {
   box: [
     {
       title: 'Box Body',
-      description: 'Main bin dimensions and shell thickness.',
-      fields: pickFields(boxFields, ['total_width_mm', 'total_length_mm', 'box_height', 'box_wall_thickness', 'box_base_thickness']),
+      description: 'Main bin dimensions, outside size clearance, and shell thickness.',
+      fields: pickFields(boxFields, ['total_width_mm', 'total_length_mm', 'box_size_clearance', 'box_height', 'box_wall_thickness', 'box_base_thickness']),
     },
     {
       title: 'Grid Fit',
@@ -407,6 +408,7 @@ function App() {
     inner_wall_thickness: 1,
     total_width_mm: 80,
     total_length_mm: 80,
+    box_size_clearance: 0.2,
     cell_w: 40,
     cell_l: 40,
     row_subdivisions: 1,
@@ -880,6 +882,7 @@ function App() {
       box_wall_thickness: boxFormData.box_wall_thickness,
       total_width_mm: boxFormData.total_width_mm,
       total_length_mm: boxFormData.total_length_mm,
+      box_size_clearance: boxFormData.box_size_clearance,
       cell_w: boxFormData.cell_w,
       cell_l: boxFormData.cell_l,
       box_height: boxFormData.box_height,
