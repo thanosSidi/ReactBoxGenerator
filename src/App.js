@@ -6,6 +6,7 @@ import * as THREE from 'three';
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
 const TOP_RAMP_MIN_INNER_WALL_HEIGHT_DIFFERENCE = 3.8;
+const LID_PLATE_PATTERN_HEIGHT = 4;
 
 const generatorTabs = [
   { id: 'baseplate', label: 'Baseplate', description: 'Flat Gridfinity floor plates' },
@@ -864,9 +865,9 @@ function App() {
     if (
       isEnclosureGenerator &&
       enclosureFormData.lid_end_surface_mode === 'with_plate_pattern' &&
-      enclosureFormData.lid_height - enclosureFormData.lid_thickness < enclosureFormData.bottom_pattern_height
+      enclosureFormData.lid_height - enclosureFormData.lid_thickness < LID_PLATE_PATTERN_HEIGHT
     ) {
-      alert('Lid inner height must be at least the Interior Baseplate Height when Lid End Surface uses the plate pattern.');
+      alert(`Lid inner height must be at least ${LID_PLATE_PATTERN_HEIGHT} mm when Lid End Surface uses the plate pattern.`);
       return;
     }
 
