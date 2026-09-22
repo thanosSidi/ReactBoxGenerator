@@ -15,31 +15,31 @@ const generatorTabs = [
 ];
   
 const baseplateFields = [
-  { name: 'total_width_mm', label: 'Inner Width (mm)' },
-  { name: 'total_length_mm', label: 'Inner Length (mm)' },
-  { name: 'cell_w', label: 'Cell Width (mm)' },
-  { name: 'cell_l', label: 'Cell Length (mm)' },
-  { name: 'printer_w', label: 'Printer Width (mm)' },
-  { name: 'printer_l', label: 'Printer Length (mm)' },
-  { name: 'base_height', label: 'Base Height (mm)' },
-  { name: 'tile_gap_mm', label: 'Tile Gap (mm)' },
-  { name: 'cut_corner_diameter', label: 'Corner Diameter (mm)', fullWidth: true },
+  { name: 'total_width_mm', label: 'Plate width (mm)', description: 'Finished width before the plate is split into printable tiles.' },
+  { name: 'total_length_mm', label: 'Plate depth (mm)', description: 'Finished front-to-back depth of the complete plate.' },
+  { name: 'cell_w', label: 'Grid cell width (mm)', description: 'Use 40 mm for standard Gridfinity compatibility.' },
+  { name: 'cell_l', label: 'Grid cell depth (mm)', description: 'Use 40 mm for standard Gridfinity compatibility.' },
+  { name: 'printer_w', label: 'Printer bed width (mm)', description: 'Largest tile width that fits your printer.' },
+  { name: 'printer_l', label: 'Printer bed depth (mm)', description: 'Largest tile depth that fits your printer.' },
+  { name: 'base_height', label: 'Plate thickness (mm)', description: 'Overall thickness of the generated baseplate.' },
+  { name: 'tile_gap_mm', label: 'Tile spacing (mm)', description: 'Space between separate tiles in the exported STL.' },
+  { name: 'cut_corner_diameter', label: 'Pocket corner diameter (mm)', description: 'Corner rounding for each Gridfinity pocket.', fullWidth: true },
 ];
 
 const boxFields = [
-  { name: 'box_wall_thickness', label: 'Wall Thickness (mm)' },
-  { name: 'box_height', label: 'Box Height (mm)' },
+  { name: 'box_wall_thickness', label: 'Outer wall thickness (mm)', description: 'Thickness of the four outside walls.' },
+  { name: 'box_height', label: 'Box height (mm)', description: 'Total height, including the Gridfinity base.' },
   { name: 'total_width_mm', label: 'Nominal Width (mm)', description: 'Grid width before the outside size clearance is applied.' },
   { name: 'total_length_mm', label: 'Nominal Length (mm)', description: 'Grid length before the outside size clearance is applied.' },
   { name: 'box_size_clearance', label: 'Size Clearance (mm)', min: 0, description: 'Subtracted once from both outside dimensions. For example, 80 x 80 with 0.2 clearance produces 79.8 x 79.8 mm.' },
-  { name: 'cell_w', label: 'Cell Width (mm)' },
-  { name: 'cell_l', label: 'Cell Length (mm)' },
-  { name: 'box_base_thickness', label: 'Base Thickness (mm)', fullWidth: true },
+  { name: 'cell_w', label: 'Grid cell width (mm)', description: 'Use 40 mm for standard Gridfinity compatibility.' },
+  { name: 'cell_l', label: 'Grid cell depth (mm)', description: 'Use 40 mm for standard Gridfinity compatibility.' },
+  { name: 'box_base_thickness', label: 'Floor thickness (mm)', description: 'Solid material above the Gridfinity bottom profile.', fullWidth: true },
 ];
 
 const enclosureFields = [
-  { name: 'total_width_mm', label: 'Total Width (mm)', description: 'Inside width of the lower enclosure before wall thickness is added.' },
-  { name: 'total_length_mm', label: 'Total Length (mm)', description: 'Inside front-to-back length of the lower enclosure.' },
+  { name: 'total_width_mm', label: 'Inside width (mm)', description: 'Usable left-to-right space inside the lower box.' },
+  { name: 'total_length_mm', label: 'Inside depth (mm)', description: 'Usable front-to-back space inside the lower box.' },
   { name: 'cell_w', label: 'Cell Width (mm)', description: 'Gridfinity cell width used to place the interior floor pattern.' },
   { name: 'cell_l', label: 'Cell Length (mm)', description: 'Gridfinity cell length used to place the interior floor pattern.' },
   { name: 'box_height', label: 'Box Height (mm)', description: 'Height of the lower box body up to the hinge line.' },
@@ -49,14 +49,15 @@ const enclosureFields = [
   { name: 'lid_thickness', label: 'Lid Thickness (mm)', description: 'Thickness of the lid wall and top.' },
   { name: 'lid_lip_height', label: 'Lid Lip Height (mm)', description: 'Depth of the inner lip that fits down into the lower box.' },
   { name: 'lid_clearance', label: 'Lid Clearance (mm)', description: 'Extra clearance around the lid lip for fit tolerance.' },
+  { name: 'hinge_lid_closing_clearance', label: 'Lid closing gap (mm)', min: 0, description: 'Vertical space between the closed lid and lower box at the hinge line.' },
   { name: 'lid_open_angle', label: 'Lid Open Angle (deg)', min: 0, description: 'Preview angle for the opened lid; use 180 for fully open.' },
-  { name: 'lid_end_surface_mode', label: 'Lid End Surface', type: 'select', options: 'lidEndSurfaceMode', fullWidth: true, description: 'Controls the inside top of the lid.' },
-  { name: 'bottom_pattern_height', label: 'Interior Baseplate Height (mm)', description: 'Depth/height reserved for the interior Gridfinity floor cuts.' },
-  { name: 'cut_corner_diameter', label: 'Pattern Corner Diameter (mm)', description: 'Corner diameter used on the Gridfinity pattern cutters.' },
+  { name: 'lid_end_surface_mode', label: 'Inside lid surface', type: 'select', options: 'lidEndSurfaceMode', fullWidth: true, description: 'Choose a hollow lid, a flat solid surface, or the Gridfinity plate pattern.' },
+  { name: 'bottom_pattern_height', label: 'Floor pocket depth (mm)', description: 'Depth of the Gridfinity pockets in the lower box floor.' },
+  { name: 'cut_corner_diameter', label: 'Pocket corner diameter (mm)', description: 'Corner rounding used by the floor pattern.' },
   { name: 'hinge_diameter', label: 'Hinge Ear Diameter (mm)', description: 'Outer diameter of the round hinge ear around the pin hole.' },
   { name: 'hinge_pin_diameter', label: 'Hinge Pin Hole Diameter (mm)', description: 'Diameter of the hole through each hinge knuckle.' },
   { name: 'hinge_barrel_length', label: 'Hinge Width (mm)', description: 'Total width of one 3-knuckle hinge assembly along the rear edge.' },
-  { name: 'hinge_gap', label: 'Hinge Gap (mm)', description: 'Spacing between separate hinge assemblies.' },
+  { name: 'hinge_gap', label: 'Hinge Gap (mm)', description: 'Spacing between separate hinge assemblies.', showWhen: (values) => Number(values.hinge_count) > 1 },
   { name: 'hinge_count', label: 'Hinge Count', step: 1, min: 1, description: 'Number of hinge assemblies along the rear edge.' },
   { name: 'hinge_knuckle_gap', label: 'Hinge Knuckle Gap (mm)', description: 'Small clearance between the two lower knuckles and the upper middle knuckle.' },
   { name: 'hinge_offset_from_box', label: 'Hinge Offset From Box (mm)', description: 'Distance from the rear wall to the front edge of the hinge circle.' },
@@ -66,16 +67,16 @@ const enclosureFields = [
   { name: 'hinge_base_incline_height', label: 'Hinge Base Incline (mm)', description: 'How far below the hinge ear the printable lower ramp starts.' },
   { name: 'hinge_top_cheek_length', label: 'Top Cheek Length (mm)', description: 'How far the upper hinge cheek climbs along the lid wall.' },
   { name: 'clamp_count', label: 'Clamp Count', step: 1, min: 0, description: 'Number of clamp mount positions on the front edge.' },
-  { name: 'clamp_width', label: 'Clamp Width (mm)', description: 'Clear width of each clamp between the two side pillars.' },
-  { name: 'clamp_distance', label: 'Clamp Distance (mm)', description: 'Distance between neighboring clamp mount positions.' },
-  { name: 'clamp_hole_diameter', label: 'Clamp Hole Diameter (mm)', description: 'Diameter of the mounting hole through each clamp pillar.' },
-  { name: 'clamp_pillar_width', label: 'Clamp Pillar Width (mm)', description: 'Width of each clamp pillar.' },
-  { name: 'bottom_clamp_hole_height', label: 'Bottom Clamp Hole Height (mm)', min: 6, description: 'Height of the lower box clamp hole center above the bottom surface.' },
+  { name: 'clamp_width', label: 'Clamp Width (mm)', description: 'Clear width of each clamp between the two side pillars.', showWhen: (values) => Number(values.clamp_count) > 0 },
+  { name: 'clamp_distance', label: 'Clamp Distance (mm)', description: 'Distance between neighboring clamp mount positions.', showWhen: (values) => Number(values.clamp_count) > 1 },
+  { name: 'clamp_hole_diameter', label: 'Clamp Hole Diameter (mm)', description: 'Diameter of the mounting hole through each clamp pillar.', showWhen: (values) => Number(values.clamp_count) > 0 },
+  { name: 'clamp_pillar_width', label: 'Clamp Pillar Width (mm)', description: 'Width of each clamp pillar.', showWhen: (values) => Number(values.clamp_count) > 0 },
+  { name: 'bottom_clamp_hole_height', label: 'Bottom Clamp Hole Height (mm)', min: 6, description: 'Height of the lower box clamp hole center above the bottom surface.', showWhen: (values) => Number(values.clamp_count) > 0 },
 ];
 
 const subdivisionFields = [
-  { name: 'inner_wall_thickness', label: 'Inner Wall Thickness (mm)' },
-  { name: 'inner_wall_height_difference', label: 'Inner Wall Height Difference (mm)' },
+  { name: 'inner_wall_thickness', label: 'Divider thickness (mm)', description: 'Thickness of walls between compartments.' },
+  { name: 'inner_wall_height_difference', label: 'Divider top clearance (mm)', description: 'How far below the outer wall the dividers stop.' },
 ];
 
 function pickFields(fields, names) {
@@ -83,50 +84,61 @@ function pickFields(fields, names) {
   return names.map((name) => fieldsByName.get(name)).filter(Boolean);
 }
 
+function getFieldPresentation(field) {
+  const unitMatch = field.label.match(/\s*\((mm|deg)\)$/i);
+  const rawUnit = field.unit || unitMatch?.[1]?.toLowerCase();
+
+  return {
+    label: unitMatch ? field.label.slice(0, unitMatch.index) : field.label,
+    unit: rawUnit === 'deg' ? '°' : rawUnit || '',
+  };
+}
+
 const formSections = {
   baseplate: [
     {
-      title: 'Plate Size',
-      description: 'Overall footprint and Gridfinity cell spacing.',
+      title: 'Size and grid',
+      description: 'Set the finished plate size. Keep both grid cells at 40 mm for standard Gridfinity parts.',
       fields: pickFields(baseplateFields, ['total_width_mm', 'total_length_mm', 'cell_w', 'cell_l']),
     },
     {
-      title: 'Print Layout',
-      description: 'Printer bed limits and tile/export details.',
+      title: 'Printing and profile',
+      description: 'Controls how the plate is split for your printer and shapes each pocket.',
       fields: pickFields(baseplateFields, ['printer_w', 'printer_l', 'base_height', 'tile_gap_mm', 'cut_corner_diameter']),
     },
   ],
   box: [
     {
-      title: 'Box Body',
-      description: 'Main bin dimensions, outside size clearance, and shell thickness.',
+      title: 'Box size',
+      description: 'Set the outside footprint, height, walls, and floor.',
       fields: pickFields(boxFields, ['total_width_mm', 'total_length_mm', 'box_size_clearance', 'box_height', 'box_wall_thickness', 'box_base_thickness']),
     },
     {
-      title: 'Grid Fit',
-      description: 'Cell dimensions used by the Gridfinity pattern.',
+      title: 'Grid fit',
+      description: 'These normally stay at 40 × 40 mm for standard Gridfinity.',
       fields: pickFields(boxFields, ['cell_w', 'cell_l']),
     },
   ],
   enclosure: [
     {
-      title: 'Lower Body',
-      description: 'The base tray dimensions and wall/floor thickness.',
+      title: 'Lower box',
+      description: 'The usable inside size and the thickness of the surrounding shell.',
       fields: pickFields(enclosureFields, ['total_width_mm', 'total_length_mm', 'box_height', 'wall_thickness', 'base_thickness']),
     },
     {
-      title: 'Lid And Fit',
-      description: 'Lid height, lip, clearance, and preview opening angle.',
-      fields: pickFields(enclosureFields, ['lid_height', 'lid_thickness', 'lid_lip_height', 'lid_clearance', 'lid_open_angle', 'lid_end_surface_mode']),
+      title: 'Lid and fit',
+      description: 'Control the lid size, how it fits the box, and what appears on its inside surface.',
+      fields: pickFields(enclosureFields, ['lid_height', 'lid_thickness', 'lid_lip_height', 'lid_clearance', 'hinge_lid_closing_clearance', 'lid_open_angle', 'lid_end_surface_mode']),
     },
     {
-      title: 'Interior Pattern',
-      description: 'Gridfinity floor cut depth and corner diameter.',
+      title: 'Inside floor pattern',
+      description: 'Gridfinity pockets cut into the floor of the lower box.',
       fields: pickFields(enclosureFields, ['cell_w', 'cell_l', 'bottom_pattern_height', 'cut_corner_diameter']),
     },
     {
       title: 'Hinges',
-      description: 'Hinge placement, pin, knuckle, and support geometry.',
+      description: 'Advanced hinge placement, pin, knuckle, and support dimensions. The defaults suit most boxes.',
+      advanced: true,
       fields: pickFields(enclosureFields, [
         'hinge_diameter',
         'hinge_pin_diameter',
@@ -144,21 +156,17 @@ const formSections = {
     },
     {
       title: 'Clamp Mounts',
-      description: 'Front latch pillars with through-holes for clamp hardware.',
+      description: 'Optional front latch pillars with through-holes for clamp hardware.',
+      advanced: true,
       fields: pickFields(enclosureFields, ['clamp_count', 'clamp_width', 'clamp_distance', 'clamp_hole_diameter', 'clamp_pillar_width', 'bottom_clamp_hole_height']),
     },
   ],
 };
 
-const topRampPatternOptions = [
-  { value: 'none', label: 'None' },
-  { value: 'normal', label: 'Normal' },
-];
-
 const lidEndSurfaceModeOptions = [
-  { value: 'empty', label: 'Empty' },
-  { value: 'filled', label: 'Filled' },
-  { value: 'with_plate_pattern', label: 'With Plate Pattern' },
+  { value: 'empty', label: 'Open / hollow' },
+  { value: 'filled', label: 'Solid surface' },
+  { value: 'with_plate_pattern', label: 'Gridfinity plate pattern' },
 ];
 
 const mergeGroupColors = ['#f97316', '#14b8a6', '#8b5cf6', '#22c55e', '#ef4444', '#0ea5e9'];
@@ -431,6 +439,7 @@ function App() {
     lid_thickness: 1,
     lid_lip_height: 2,
     lid_clearance: 0.4,
+    hinge_lid_closing_clearance: 0.5,
     lid_open_angle: 180,
     lid_end_surface_mode: 'empty',
     bottom_pattern_height: 3.2,
@@ -440,7 +449,7 @@ function App() {
     hinge_barrel_length: 30,
     hinge_gap: 80,
     hinge_count: 2,
-    hinge_knuckle_gap: 1,
+    hinge_knuckle_gap: 0.2,
     hinge_offset_from_box: 2,
     hinge_side_margin: 8,
     hinge_leaf_depth: 14,
@@ -448,7 +457,7 @@ function App() {
     hinge_base_incline_height: 6,
     hinge_top_cheek_length: 4,
     clamp_count: 0,
-    clamp_width: 18,
+    clamp_width: 20,
     clamp_distance: 40,
     clamp_hole_diameter: 3,
     clamp_pillar_width: 5,
@@ -856,6 +865,14 @@ function App() {
 
     if (
       isEnclosureGenerator &&
+      enclosureFormData.hinge_lid_closing_clearance < 0
+    ) {
+      alert('Lid Closing Gap must be 0 or greater.');
+      return;
+    }
+
+    if (
+      isEnclosureGenerator &&
       enclosureFormData.base_thickness < enclosureFormData.bottom_pattern_height
     ) {
       alert('Floor Thickness must be at least the Interior Baseplate Height.');
@@ -1056,7 +1073,9 @@ function App() {
     tabButton: {
       minHeight: isMobile ? '46px' : '58px',
       padding: isMobile ? '9px 8px' : '10px 12px',
-      border: '1px solid #e2e8f0',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#e2e8f0',
       borderRadius: '6px',
       backgroundColor: '#f8fafc',
       color: '#334155',
@@ -1092,6 +1111,25 @@ function App() {
       flexDirection: 'column',
       gap: isMobile ? '12px' : '14px',
     },
+    settingsIntro: {
+      marginBottom: isMobile ? '12px' : '14px',
+      padding: '12px 14px',
+      border: '1px solid #bfdbfe',
+      borderRadius: '8px',
+      backgroundColor: '#eff6ff',
+    },
+    settingsIntroTitle: {
+      margin: '0 0 3px',
+      fontSize: '14px',
+      fontWeight: 750,
+      color: '#1e3a8a',
+    },
+    settingsIntroText: {
+      margin: 0,
+      fontSize: '12px',
+      lineHeight: 1.45,
+      color: '#475569',
+    },
     formSection: {
       padding: isMobile ? '12px' : '14px',
       border: '1px solid #e2e8f0',
@@ -1109,6 +1147,35 @@ function App() {
     },
     sectionDescription: {
       margin: 0,
+      fontSize: '12px',
+      lineHeight: 1.4,
+      color: '#64748b',
+    },
+    advancedSummary: {
+      cursor: 'pointer',
+      color: '#0f172a',
+      fontSize: '14px',
+      fontWeight: 750,
+    },
+    advancedSummaryContent: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: 'calc(100% - 18px)',
+      marginLeft: '6px',
+    },
+    advancedBadge: {
+      padding: '2px 7px',
+      borderRadius: '999px',
+      backgroundColor: '#f1f5f9',
+      color: '#64748b',
+      fontSize: '10px',
+      fontWeight: 750,
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase',
+    },
+    advancedDescription: {
+      margin: '9px 0 12px',
       fontSize: '12px',
       lineHeight: 1.4,
       color: '#64748b',
@@ -1144,6 +1211,39 @@ function App() {
       backgroundColor: '#f8fafc',
       boxSizing: 'border-box',
       width: '100%',
+    },
+    numberField: {
+      display: 'flex',
+      alignItems: 'stretch',
+      overflow: 'hidden',
+      border: '1px solid #cbd5e1',
+      borderRadius: '8px',
+      backgroundColor: '#f8fafc',
+      transition: 'border-color 0.2s, box-shadow 0.2s, background-color 0.2s',
+    },
+    numberInput: {
+      minWidth: 0,
+      width: '100%',
+      padding: isMobile ? '10px 11px' : '10px 12px',
+      border: 0,
+      outline: 'none',
+      backgroundColor: 'transparent',
+      color: '#0f172a',
+      fontSize: '16px',
+      fontWeight: 600,
+      fontVariantNumeric: 'tabular-nums',
+      boxSizing: 'border-box',
+    },
+    unitSuffix: {
+      display: 'flex',
+      alignItems: 'center',
+      padding: '0 11px',
+      borderLeft: '1px solid #e2e8f0',
+      backgroundColor: '#f1f5f9',
+      color: '#64748b',
+      fontSize: '12px',
+      fontWeight: 700,
+      userSelect: 'none',
     },
     select: {
       padding: isMobile ? '10px 11px' : '10px 14px',
@@ -1655,21 +1755,29 @@ function App() {
   };
 
   const renderField = (field) => {
+    if (field.showWhen && !field.showWhen(activeFormData)) return null;
+
+    const presentation = getFieldPresentation(field);
+    const inputId = `${activeTab}-${field.name}`;
+    const descriptionId = field.description ? `${inputId}-description` : undefined;
+
     if (field.type === 'checkbox') {
       return (
         <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
-          <label style={styles.checkboxLabel}>
+          <label htmlFor={inputId} style={styles.checkboxLabel}>
             <input
+              id={inputId}
               type="checkbox"
               name={field.name}
               checked={Boolean(activeFormData[field.name])}
               onChange={handleInputChange}
+              aria-describedby={descriptionId}
               style={styles.checkbox}
             />
-            {field.label}
+            {presentation.label}
           </label>
           {field.description && (
-            <p style={styles.helperText}>{field.description}</p>
+            <p id={descriptionId} style={styles.helperText}>{field.description}</p>
           )}
         </div>
       );
@@ -1682,11 +1790,13 @@ function App() {
 
       return (
         <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
-          <label style={styles.label}>{field.label}</label>
+          <label htmlFor={inputId} style={styles.label}>{presentation.label}</label>
           <select
+            id={inputId}
             name={field.name}
             value={activeFormData[field.name]}
             onChange={handleSelectChange}
+            aria-describedby={descriptionId}
             style={styles.select}
           >
             {options.map((option) => (
@@ -1696,7 +1806,7 @@ function App() {
             ))}
           </select>
           {field.description && (
-            <p style={styles.helperText}>{field.description}</p>
+            <p id={descriptionId} style={styles.helperText}>{field.description}</p>
           )}
         </div>
       );
@@ -1704,18 +1814,25 @@ function App() {
 
     return (
       <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
-        <label style={styles.label}>{field.label}</label>
-        <input
-          type="number"
-          name={field.name}
-          value={activeFormData[field.name]}
-          onChange={handleInputChange}
-          step={field.step || 0.1}
-          min={field.min || 0}
-          style={styles.input}
-        />
+        <label htmlFor={inputId} style={styles.label}>{presentation.label}</label>
+        <div className="number-field" style={styles.numberField}>
+          <input
+            id={inputId}
+            type="number"
+            name={field.name}
+            value={activeFormData[field.name]}
+            onChange={handleInputChange}
+            step={field.step || 0.1}
+            min={field.min ?? 0}
+            aria-describedby={descriptionId}
+            style={styles.numberInput}
+          />
+          {presentation.unit && (
+            <span aria-hidden="true" style={styles.unitSuffix}>{presentation.unit}</span>
+          )}
+        </div>
         {field.description && (
-          <p style={styles.helperText}>{field.description}</p>
+          <p id={descriptionId} style={styles.helperText}>{field.description}</p>
         )}
       </div>
     );
@@ -1728,6 +1845,16 @@ function App() {
           border-color: #3b82f6 !important;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
           background-color: #ffffff !important;
+        }
+        .number-field:focus-within {
+          border-color: #3b82f6 !important;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+          background-color: #ffffff !important;
+        }
+        .number-field input:focus {
+          border-color: transparent !important;
+          box-shadow: none !important;
+          background-color: transparent !important;
         }
         select:focus {
           border-color: #3b82f6 !important;
@@ -1755,6 +1882,13 @@ function App() {
         }
         .generator-tab:hover:not(:disabled) {
           background-color: #ffffff !important;
+        }
+        .generator-tab:focus {
+          outline: none;
+        }
+        .generator-tab:focus-visible {
+          outline: 3px solid rgba(59, 130, 246, 0.28);
+          outline-offset: 2px;
         }
         button:active:not(:disabled) {
           transform: translateY(1px);
@@ -1805,8 +1939,27 @@ function App() {
       <main style={styles.workspace}>
         <div style={styles.sidebar}>
         <form onSubmit={(e) => { e.preventDefault(); generateSTL(); }} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={styles.settingsIntro}>
+            <p style={styles.settingsIntroTitle}>{activeGenerator.label} settings</p>
+            <p style={styles.settingsIntroText}>
+              The defaults are ready to generate. Change only what you need; measurements are shown with their units.
+            </p>
+          </div>
           <div style={styles.formSections}>
-            {activeSections.map((section) => (
+            {activeSections.map((section) => section.advanced ? (
+              <details key={section.title} style={styles.formSection}>
+                <summary style={styles.advancedSummary}>
+                  <span style={styles.advancedSummaryContent}>
+                    <span>{section.title}</span>
+                    <span style={styles.advancedBadge}>Advanced</span>
+                  </span>
+                </summary>
+                <p style={styles.advancedDescription}>{section.description}</p>
+                <div style={styles.grid}>
+                  {section.fields.map(renderField)}
+                </div>
+              </details>
+            ) : (
               <section key={section.title} style={styles.formSection}>
                 <div style={styles.sectionHeader}>
                   <h2 style={styles.sectionTitle}>{section.title}</h2>
@@ -1829,25 +1982,15 @@ function App() {
                     onChange={(e) => setSubdivisionEnabled(e.target.checked)}
                     style={styles.checkbox}
                   />
-                  Box Sub-Division Feature
+                  Add internal dividers
                 </label>
+                <p style={{ ...styles.helperText, marginTop: '6px' }}>
+                  Split the box into compartments and optionally merge neighboring cells.
+                </p>
 
                 {subdivisionEnabled && (
                   <div style={styles.nestedGrid}>
-                    {subdivisionFields.map((field) => (
-                      <div key={field.name} style={field.fullWidth ? styles.fullWidthField : styles.formField}>
-                        <label style={styles.label}>{field.label}</label>
-                        <input
-                          type="number"
-                          name={field.name}
-                          value={boxFormData[field.name]}
-                          onChange={handleInputChange}
-                          step={field.step || 0.1}
-                          min={field.min || 0}
-                          style={styles.input}
-                        />
-                      </div>
-                    ))}
+                    {subdivisionFields.map(renderField)}
                     <div style={styles.mergePanel}>
                       <label style={styles.label}>Subdivision Layout</label>
                       <div style={styles.dimensionEditor}>
@@ -1976,31 +2119,21 @@ function App() {
                   <input
                     type="checkbox"
                     checked={topRampPatternEnabled}
-                    onChange={(e) => setTopRampPatternEnabled(e.target.checked)}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setTopRampPatternEnabled(enabled);
+                      setBoxFormData((current) => ({
+                        ...current,
+                        top_ramp_pattern: enabled ? 'normal' : 'none',
+                      }));
+                    }}
                     style={styles.checkbox}
                   />
-                  Top Ramp Pattern
+                  Add stackable top rim
                 </label>
-
-                {topRampPatternEnabled && (
-                  <div style={styles.nestedGrid}>
-                    <div style={styles.fullWidthField}>
-                      <label style={styles.label}>Pattern</label>
-                      <select
-                        name="top_ramp_pattern"
-                        value={boxFormData.top_ramp_pattern}
-                        onChange={handleSelectChange}
-                        style={styles.select}
-                      >
-                        {topRampPatternOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
+                <p style={{ ...styles.helperText, marginTop: '6px' }}>
+                  Adds the standard Gridfinity recess around the top so another bin can sit securely above it.
+                </p>
               </div>
             </>
           )}
