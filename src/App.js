@@ -1912,11 +1912,11 @@ function App() {
           <div style={styles.brand}>
             <img
               src={`${process.env.PUBLIC_URL}/BoxLogo.png`}
-              alt="Gridfinity Generator logo"
+              alt="Customizable 3D Printed Components"
               style={styles.logo}
             />
             <div>
-              <h1 style={styles.title}>Gridfinity Generator</h1>
+              <h1 style={styles.title}>Customizable 3D Printed Components Generator</h1>
               <p style={styles.subtitle}>
                 Build plates, boxes, and hinged enclosures from one workspace.
               </p>
