@@ -1016,10 +1016,22 @@ function App() {
     },
     topBarInner: {
       display: 'grid',
-      gridTemplateColumns: isMobile ? '1fr' : 'minmax(220px, 360px) minmax(0, 1fr)',
+      gridTemplateColumns: isMobile ? '1fr' : 'minmax(280px, 420px) minmax(0, 1fr)',
       alignItems: 'center',
       gap: isMobile ? '12px' : '24px',
       width: '100%',
+    },
+    brand: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: isMobile ? '12px' : '16px',
+      minWidth: 0,
+    },
+    logo: {
+      width: isMobile ? '52px' : '64px',
+      height: isMobile ? '52px' : '64px',
+      flex: '0 0 auto',
+      objectFit: 'contain',
     },
     workspace: {
       flex: '1 1 auto',
@@ -1897,11 +1909,18 @@ function App() {
 
       <header style={styles.topBar}>
         <div style={styles.topBarInner}>
-          <div>
-            <h1 style={styles.title}>Gridfinity Generator</h1>
-            <p style={styles.subtitle}>
-              Build plates, boxes, and hinged enclosures from one workspace.
-            </p>
+          <div style={styles.brand}>
+            <img
+              src={`${process.env.PUBLIC_URL}/BoxLogo.png`}
+              alt="Gridfinity Generator logo"
+              style={styles.logo}
+            />
+            <div>
+              <h1 style={styles.title}>Gridfinity Generator</h1>
+              <p style={styles.subtitle}>
+                Build plates, boxes, and hinged enclosures from one workspace.
+              </p>
+            </div>
           </div>
 
           <div>
