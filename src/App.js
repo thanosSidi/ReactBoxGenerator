@@ -75,7 +75,7 @@ const enclosureFields = [
 ];
 
 const latchFields = [
-  { name: 'x', label: 'Straight section height (mm)', description: 'Height of the straight section before the semicircle.' },
+  { name: 'x', label: 'Hole to Clamp Height (mm)', description: 'Vertical distance from the hole center to the bottom of the clamp rod.' },
   { name: 'diameter', label: 'Semicircle diameter (mm)', description: 'Diameter of the latch head semicircle.' },
   { name: 'hole_diameter', label: 'Mounting hole diameter (mm)', description: 'Diameter of the mounting hole.' },
   { name: 'thickness', label: 'Latch thickness (mm)', description: 'Extrusion thickness of the latch.' },
