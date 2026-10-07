@@ -74,6 +74,15 @@ const enclosureFields = [
   { name: 'bottom_clamp_hole_height', label: 'Bottom Clamp Hole Height (mm)', min: 6, description: 'Height of the lower box clamp hole center above the bottom surface.', showWhen: (values) => Number(values.clamp_count) > 0 },
 ];
 
+const latchFields = [
+  { name: 'x', label: 'Straight section height (mm)', description: 'Height of the straight section before the semicircle.' },
+  { name: 'diameter', label: 'Semicircle diameter (mm)', description: 'Diameter of the latch head semicircle.' },
+  { name: 'hole_diameter', label: 'Mounting hole diameter (mm)', description: 'Diameter of the mounting hole.' },
+  { name: 'thickness', label: 'Latch thickness (mm)', description: 'Extrusion thickness of the latch.' },
+  { name: 'connector_arc_diameter', label: 'Connector arc diameter (mm)', description: 'Controls the curve between the latch head and lower tab.' },
+  { name: 'edge_fillet_radius', label: 'Edge fillet radius (mm)', min: 0, description: 'Rounds the connector start and the top and bottom perimeter edges. Set to 0 to disable.' },
+];
+
 const subdivisionFields = [
   { name: 'inner_wall_thickness', label: 'Divider thickness (mm)', description: 'Thickness of walls between compartments.' },
   { name: 'inner_wall_height_difference', label: 'Divider top clearance (mm)', description: 'How far below the outer wall the dividers stop.' },
@@ -159,6 +168,13 @@ const formSections = {
       description: 'Optional front latch pillars with through-holes for clamp hardware.',
       advanced: true,
       fields: pickFields(enclosureFields, ['clamp_count', 'clamp_width', 'clamp_distance', 'clamp_hole_diameter', 'clamp_pillar_width', 'bottom_clamp_hole_height']),
+    },
+  ],
+  latch: [
+    {
+      title: 'Latch dimensions',
+      description: 'Adjust the latch profile, mounting hole, connector curve, and edge rounding.',
+      fields: latchFields,
     },
   ],
 };
@@ -386,6 +402,7 @@ function App() {
   const [stlUrl, setStlUrl] = useState('');
   const [generatedType, setGeneratedType] = useState('baseplate');
   const [activeTab, setActiveTab] = useState('baseplate');
+  const [enclosureMode, setEnclosureMode] = useState('enclosure');
   const [loading, setLoading] = useState(false);
   const [objectSpecs, setObjectSpecs] = useState(null);
   const [subdivisionEnabled, setSubdivisionEnabled] = useState(false);
@@ -463,13 +480,26 @@ function App() {
     clamp_pillar_width: 5,
     bottom_clamp_hole_height: 8
   });
+  const [latchFormData, setLatchFormData] = useState({
+    x: 40,
+    diameter: 8,
+    hole_diameter: 3.2,
+    thickness: 30,
+    connector_arc_diameter: 6,
+    edge_fillet_radius: 0.4,
+  });
 
-  const activeGenerator = generatorTabs.find((tab) => tab.id === activeTab) || generatorTabs[0];
-  const activeSections = formSections[activeTab] || formSections.baseplate;
+  const isLatchSelected = activeTab === 'enclosure' && enclosureMode === 'latch';
+  const activeGenerator = isLatchSelected
+    ? { label: 'Latch' }
+    : generatorTabs.find((tab) => tab.id === activeTab) || generatorTabs[0];
+  const activeSections = isLatchSelected
+    ? formSections.latch
+    : formSections[activeTab] || formSections.baseplate;
   const activeFormData = {
     baseplate: baseplateFormData,
     box: boxFormData,
-    enclosure: enclosureFormData,
+    enclosure: isLatchSelected ? latchFormData : enclosureFormData,
   }[activeTab];
 
   const handleInputChange = (e) => {
@@ -480,6 +510,8 @@ function App() {
       setBaseplateFormData({ ...baseplateFormData, [name]: parsedValue });
     } else if (activeTab === 'box') {
       setBoxFormData({ ...boxFormData, [name]: parsedValue });
+    } else if (isLatchSelected) {
+      setLatchFormData({ ...latchFormData, [name]: parsedValue });
     } else {
       setEnclosureFormData({ ...enclosureFormData, [name]: parsedValue });
     }
@@ -489,6 +521,8 @@ function App() {
     const { name, value } = e.target;
     if (activeTab === 'box') {
       setBoxFormData({ ...boxFormData, [name]: value });
+    } else if (isLatchSelected) {
+      setLatchFormData({ ...latchFormData, [name]: value });
     } else if (activeTab === 'enclosure') {
       setEnclosureFormData({ ...enclosureFormData, [name]: value });
     }
@@ -768,13 +802,16 @@ function App() {
 
   const generateSTL = async () => {
     const isBoxGenerator = activeTab === 'box';
-    const isEnclosureGenerator = activeTab === 'enclosure';
-    const submittedType = activeTab;
+    const isEnclosureGenerator = activeTab === 'enclosure' && enclosureMode === 'enclosure';
+    const isLatchGenerator = activeTab === 'enclosure' && enclosureMode === 'latch';
+    const submittedType = isLatchGenerator ? 'latch' : activeTab;
     const endpoint = isBoxGenerator
       ? '/box_generate'
       : isEnclosureGenerator
         ? '/enclosure_generate'
-        : '/generate-baseplate';
+        : isLatchGenerator
+          ? '/latch_generate'
+          : '/generate-baseplate';
     const topRampPattern = topRampPatternEnabled ? boxFormData.top_ramp_pattern : 'none';
 
     if (isBoxGenerator && subdivisionEnabled && customSubdivisionSizingEnabled && !customSubdivisionSizesValid) {
@@ -896,6 +933,21 @@ function App() {
       return;
     }
 
+    if (isLatchGenerator) {
+      const minimumConnectorArcDiameter = Math.hypot(
+        ((latchFormData.diameter - latchFormData.hole_diameter) / 2) - (latchFormData.diameter / 2 + 2),
+        -2 - 0.8,
+      );
+      if (latchFormData.hole_diameter >= latchFormData.diameter / 2) {
+        alert('Mounting hole diameter must be less than half the semicircle diameter.');
+        return;
+      }
+      if (latchFormData.connector_arc_diameter < minimumConnectorArcDiameter) {
+        alert(`Connector arc diameter must be at least ${minimumConnectorArcDiameter.toFixed(2)} mm for these dimensions.`);
+        return;
+      }
+    }
+
     const boxPayload = {
       box_wall_thickness: boxFormData.box_wall_thickness,
       total_width_mm: boxFormData.total_width_mm,
@@ -934,7 +986,9 @@ function App() {
       ? boxPayload
       : isEnclosureGenerator
         ? enclosureFormData
-        : baseplateFormData;
+        : isLatchGenerator
+          ? latchFormData
+          : baseplateFormData;
 
     setLoading(true);
     try {
@@ -978,6 +1032,7 @@ function App() {
         baseplate: 'gridfinity-baseplate.stl',
         box: 'gridfinity-box.stl',
         enclosure: 'gridfinity-enclosure.stl',
+        latch: 'latch.stl',
       }[generatedType] || 'gridfinity-model.stl';
       document.body.appendChild(link);
       link.click();
@@ -1918,7 +1973,7 @@ function App() {
             <div>
               <h1 style={styles.title}>Customizable 3D Printed Components Generator</h1>
               <p style={styles.subtitle}>
-                Build plates, boxes, and hinged enclosures from one workspace.
+                Build plates, boxes, hinged enclosures, and latches from one workspace.
               </p>
             </div>
           </div>
@@ -1959,6 +2014,20 @@ function App() {
         <div style={styles.sidebar}>
         <form onSubmit={(e) => { e.preventDefault(); generateSTL(); }} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div style={styles.settingsIntro}>
+            {activeTab === 'enclosure' && (
+              <div style={{ ...styles.formField, marginBottom: '14px' }}>
+                <label htmlFor="enclosure-mode" style={styles.label}>Part type</label>
+                <select
+                  id="enclosure-mode"
+                  value={enclosureMode}
+                  onChange={(event) => setEnclosureMode(event.target.value)}
+                  style={styles.select}
+                >
+                  <option value="enclosure">Enclosure</option>
+                  <option value="latch">Latch</option>
+                </select>
+              </div>
+            )}
             <p style={styles.settingsIntroTitle}>{activeGenerator.label} settings</p>
             <p style={styles.settingsIntroText}>
               The defaults are ready to generate. Change only what you need; measurements are shown with their units.
